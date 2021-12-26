@@ -14,8 +14,6 @@ from nonebot.drivers import (
     Response,
     WebSocket,
     ForwardDriver,
-    ReverseDriver,
-    HTTPServerSetup,
     WebSocketServerSetup,
 )
 
@@ -73,20 +71,7 @@ class Adapter(BaseAdapter):
 
     @overrides(BaseAdapter)
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
-        websocket = self.connections.get(bot.self_id, None)
-        log("DEBUG", f"Calling API <y>{api}</y>")
-        if websocket:
-            seq = ResultStore.get_seq()
-            json_data = json.dumps(
-                {"action": api, "params": data, "echo": {"seq": seq}},
-                cls=DataclassEncoder,
-            )
-            await websocket.send(json_data)
-            return _handle_api_result(
-                await ResultStore.fetch(bot.self_id, seq, self.config.api_timeout)
-            )
-
-        elif isinstance(self.driver, ForwardDriver):
+        if isinstance(self.driver, ForwardDriver):
             api_root = self.config.api_root.get(bot.self_id)
             if not api_root:
                 raise ApiNotAvailable
@@ -94,9 +79,9 @@ class Adapter(BaseAdapter):
                 api_root += "/"
 
             headers = {"Content-Type": "application/json"}
-            if self.kaiheila_config.onebot_access_token is not None:
+            if bot.token is not None:
                 headers["Authorization"] = (
-                    "Bearer " + self.kaiheila_config.onebot_access_token
+                    "Bearer " + bot.token
                 )
 
             request = Request(
@@ -236,7 +221,7 @@ class Adapter(BaseAdapter):
                     bot["gateway"] = _handle_api_result(result)["url"]
 
                     ws_url = URL(url)
-                    self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot["token"], bot["client_id"])))
+                    self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot)))
             except Exception as e:
                 log(
                     "ERROR",
@@ -252,8 +237,10 @@ class Adapter(BaseAdapter):
 
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
-    async def _forward_ws(self, url: URL, token: str, client_id: str) -> None:
+    async def _forward_ws(self, url: URL, bot_config: dict) -> None:
         headers = {}
+        token = bot_config['token']
+        client_id = bot_config['client_id']
         if token:
             headers[
                 "Authorization"
@@ -287,17 +274,17 @@ class Adapter(BaseAdapter):
                             data = await ws.receive_bytes()
                         data = data_decompress_func(data)
                         json_data = json.loads(data)
-                        event = self.json_to_event(json_data, bot and client_id, client_id)
+                        event = self.json_to_event(json_data, bot and client_id)
                         if not event:
                             continue
                         if not bot:
-                            # if (
-                            #     not isinstance(event, LifecycleMetaEvent)
-                            #     or event.sub_type != "connect"
-                            # ):
-                            #     continue
+                            if (
+                                not isinstance(event, LifecycleMetaEvent)
+                                or event.sub_type != "connect"
+                            ):
+                                continue
                             self_id = client_id
-                            bot = Bot(self, str(self_id), event.get_session_id)
+                            bot = Bot(self, str(self_id), event.get_session_id(), token)
                             self.connections[str(self_id)] = ws
                             self.bot_connect(bot)
                             log(
@@ -327,7 +314,7 @@ class Adapter(BaseAdapter):
 
     @classmethod
     def json_to_event(
-        cls, json_data: Any, self_id: Optional[str] = None, client_id: Optional[str] = '',
+        cls, json_data: Any, self_id: Optional[str] = None,
     ) -> Optional[Event]:
         if not isinstance(json_data, dict):
             return None

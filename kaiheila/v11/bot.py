@@ -189,17 +189,19 @@ class Bot(BaseBot):
         ["Bot", Event, Union[str, Message, MessageSegment]], Any
     ] = send
 
-    def __init__(self, adapter: "Adapter", self_id: str, session_id: str):
+    def __init__(self, adapter: "Adapter", self_id: str, session_id: str, token: str):
         """
         :参数:
 
           * ``adapter: Adapter``: 适配器
           * ``self_id: str``: 机器人 ID
           * ``session_id``: 会话 ID
+          * ``token``: 机器人 token
 
         """
         super().__init__(adapter, self_id)
         self.session_id: str = session_id
+        self.token: str = token
 
     @overrides(BaseBot)
     async def call_api(self, api: str, **data) -> Any:
