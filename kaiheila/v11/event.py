@@ -8,12 +8,50 @@ from pygtrie import StringTrie
 from nonebot.typing import overrides
 from nonebot.utils import escape_tag
 from nonebot.adapters import Event as BaseEvent
+from enum import IntEnum, Enum
 
 from .message import Message
 from .exception import NoLogException
 
 if TYPE_CHECKING:
     from .bot import Bot
+
+
+class EventTypes(IntEnum):
+    """
+    事件主要格式
+    Kaiheila 协议事件，字段与 Kaiheila 一致。各事件字段参考 `Kaiheila 文档`
+
+    .. Kaiheila 文档:
+        https://developer.kaiheila.cn/doc/event/event-introduction#事件主要格式
+    """
+
+    TEXT = 1
+    IMAGE = 2
+    VIDEO = 3
+    FILE = 4
+    AUDIO = 8
+    KMarkdown = 9
+    CARD = 10
+    SYS = 255
+
+class SignalTypes(IntEnum):
+    """
+    信令类型
+    Kaiheila 协议信令，字段与 Kaiheila 一致。各事件字段参考 `Kaiheila 文档`
+
+    .. Kaiheila 文档:
+        https://developer.kaiheila.cn/doc/websocket#信令格式
+    """
+
+    EVENT = 0
+    HELLO = 1
+    PING = 2
+    PONG = 3
+    RESUME = 4
+    RECONNECT = 5
+    RESUME_ACK = 6
+    SYS = 255
 
 class Role(BaseModel):
     role_id: Optional[int] = Field(None)
@@ -45,6 +83,8 @@ class Channel(BaseModel):
 
 class User(BaseModel):
     """
+    开黑啦 User 字段
+
     https://developer.kaiheila.cn/doc/objects
     """
     id_: Optional[str] = Field(None, alias="id")
@@ -96,21 +136,21 @@ class Attachment(BaseModel):
 
 
 class Body(BaseModel):
-    msg_id: str
-    user_id: str
-    author_id: str
-    target_id: str
-    channel_id: str
+    msg_id: Optional[str]
+    user_id: Optional[str]
+    author_id: Optional[str]
+    group_id: Optional[str]
+    channel_id: Optional[str]
     emoji: Optional[Emoji] = None
     content: Optional[str] = None
-    updated_at: int
-    chat_code: str
+    updated_at: Optional[str]
+    chat_code: Optional[str]
 
     class Config:
         extra = "allow"
 
 class Extra(BaseModel):
-    type_: Optional[int] = Field(None, alias="type")
+    type_: Union[int, str] = Field(None, alias="type")
     guild_id: Optional[str] = Field(None)
     channel_name: Optional[str] = Field(None)
     mention: Optional[List[str]] = Field(None)
@@ -122,11 +162,11 @@ class Extra(BaseModel):
     attachments: Optional[Attachment] = Field(None)
     code: Optional[str] = Field(None)
 
-    @validator("body")
-    def check_body(cls, v, values):
-        if values["type_"] != 255 and v:  # 非系统消息 没有body
-            raise ValueError("非系统消息不应该有body字段")
-        return v
+    # @validator("body")
+    # def check_body(cls, v, values):
+    #     if values["type_"] != 255 and v:  # 非系统消息 没有body
+    #         raise ValueError("非系统消息不应该有body字段")
+    #     return v
 
 class OriginEvent(BaseEvent):
     """为了区分信令中非Event事件，增加了前置OriginEvent"""
@@ -178,12 +218,13 @@ class Event(OriginEvent):
     channel_type: Literal["PERSON", "GROUP"]
     type_: int = Field(alias="type")  # 1:文字消息, 2:图片消息，3:视频消息，4:文件消息， 8:音频消息，9:KMarkdown，10:card消息，255:系统消息, 其它的暂未开放
     target_id: str
-    author_id: str
+    author_id: str = None
     content: str
     msg_id: str
     msg_timestamp: int
     nonce: str
     extra: Extra
+    user_id: str
 
     post_type: str
     self_id: Optional[str] = None # onebot兼容
@@ -245,7 +286,8 @@ class Status(BaseModel):
         extra = "allow"
 
 
-# Message Events
+
+# Message Events    OK
 class MessageEvent(Event):
     """消息事件"""
 
@@ -256,12 +298,6 @@ class MessageEvent(Event):
     sub_type: str
     message: Message
 
-    # user_id: int
-    # message_id: int
-    # message: Message
-    # raw_message: str
-    # font: int
-    # sender: Sender
 
 
     to_me: bool = False
@@ -328,7 +364,7 @@ class PrivateMessageEvent(MessageEvent):
 
 
 class GroupMessageEvent(MessageEvent):
-    """群消息"""
+    """公共频道消息"""
 
     __event__ = "message.group"
     message_type: Literal["group"]
@@ -338,7 +374,7 @@ class GroupMessageEvent(MessageEvent):
     @overrides(Event)
     def get_event_description(self) -> str:
         return (
-            f'Message {self.message_id} from {self.user_id}@[群:{self.group_id}] "'
+            f'Message {self.message_id} from {self.user_id}@[服务器:{self.extra.guild_id}][频道:{self.group_id}] "'
             + "".join(
                 map(
                     lambda x: escape_tag(str(x))
@@ -368,6 +404,256 @@ class NoticeEvent(Event):
         sub_type = getattr(self, "sub_type", None)
         return f"{self.post_type}.{self.notice_type}" + (
             f".{sub_type}" if sub_type else ""
+        )
+
+# class GroupNoticeEvent(NoticeEvent):
+#     """频道通知事件"""
+
+#     __event__ = "notice.group"
+#     notice_type: Literal["group"]
+#     user_id: str
+#     group_id: int
+
+#     @overrides(NoticeEvent)
+#     def get_user_id(self) -> str:
+#         return str(self.user_id)
+
+#     @overrides(NoticeEvent)
+#     def get_session_id(self) -> str:
+#         return f"group_{self.group_id}_{self.user_id}"
+
+# OK
+class GroupAddReactionEvent(NoticeEvent):
+    """频道内用户添加 reaction"""
+
+    __event__ = "notice.added_reaction"
+    notice_type: Literal["added_reaction"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.user_id}@[服务器:{self.target_id}][频道:{self.extra.body.channel_id}] '
+            + f'add Emoji "{self.extra.body.emoji.name}" ' + ''
+            + f'to {self.extra.body.msg_id}'
+        )
+
+# OK
+class GroupDeletedReactionEvent(NoticeEvent):
+    """频道内用户删除 reaction"""
+
+    __event__ = "notice.deleted_reaction"
+    notice_type: Literal["deleted_reaction"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'delete Emoji "{self.extra.body.emoji.name}" '
+            + f'from {self.extra.body.msg_id}'
+        )
+
+class GroupUpdatedMessageEvent(NoticeEvent):
+    """频道消息更新"""
+
+    __event__ = "notice.updated_message"
+    notice_type: Literal["updated_message"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'update message {self.extra.body.msg_id} '
+            + f'to "{self.extra.body.content}' + '"'
+        )
+
+class GroupDeleteMessageEvent(NoticeEvent):
+    """频道消息被删除"""
+
+    __event__ = "notice.deleted_message"
+    notice_type: Literal["deleted_message"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'delete message "{self.extra.body.msg_id}" '
+        )
+        
+class GroupAddedChannelEvent(NoticeEvent):
+    """新增频道"""
+
+    __event__ = "notice.added_channel"
+    notice_type: Literal["added_channel"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}] '
+            + f'新增频道 "[{self.extra.body.name}:{self.extra.body.id}]' + '"'
+        )
+
+class GroupUpdatedChannelEvent(NoticeEvent):
+    """修改频道信息"""
+
+    __event__ = "notice.updated_channel"
+    notice_type: Literal["updated_channel"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}] '
+            + f'修改频道信息 "[{self.extra.body.name}:{self.extra.body.id}]' + '"'
+        )
+
+class GroupDeleteChannelEvent(NoticeEvent):
+    """删除频道"""
+
+    __event__ = "notice.deleted_channel"
+    notice_type: Literal["deleted_channel"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}] '
+            + f'删除频道 "[{self.extra.body.id}]' + '"'
+        )
+
+class GroupPinnedMessageEvent(NoticeEvent):
+    """新增频道置顶消息"""
+
+    __event__ = "notice.pinned_message"
+    notice_type: Literal["pinned_message"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.operator_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'新增频道置顶消息 "{self.extra.body.msg_id}" '
+        )
+
+class GroupUnpinnedMessageEvent(NoticeEvent):
+    """取消频道置顶消息"""
+
+    __event__ = "notice.unpinned_message"
+    notice_type: Literal["unpinned_message"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.operator_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'取消频道置顶消息 "{self.extra.body.msg_id}" '
+        )
+     
+
+
+# OK
+class PrivateAddReactionEvent(NoticeEvent):
+    """私聊内用户添加 reaction"""
+
+    __event__ = "notice.private_added_reaction"
+    notice_type: Literal["private_added_reaction"]
+    user_id: str
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.user_id} "'
+            + f'add Emoji {self.extra.body.emoji.name} '
+            + f'to {self.extra.body.msg_id}' + '"'
         )
 
 
@@ -560,12 +846,12 @@ class PokeNotifyEvent(NotifyEvent):
 
     __event__ = "notice.notify.poke"
     sub_type: Literal["poke"]
-    target_id: int
+    group_id: int
     group_id: Optional[int] = None
 
     @overrides(Event)
     def is_tome(self) -> bool:
-        return self.target_id == self.self_id
+        return self.group_id == self.self_id
 
     @overrides(NotifyEvent)
     def get_session_id(self) -> str:
@@ -579,19 +865,19 @@ class LuckyKingNotifyEvent(NotifyEvent):
 
     __event__ = "notice.notify.lucky_king"
     sub_type: Literal["lucky_king"]
-    target_id: int
+    group_id: int
 
     @overrides(Event)
     def is_tome(self) -> bool:
-        return self.target_id == self.self_id
+        return self.group_id == self.self_id
 
     @overrides(NotifyEvent)
     def get_user_id(self) -> str:
-        return str(self.target_id)
+        return str(self.group_id)
 
     @overrides(NotifyEvent)
     def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.target_id}"
+        return f"group_{self.group_id}_{self.group_id}"
 
 
 class HonorNotifyEvent(NotifyEvent):
@@ -679,7 +965,7 @@ class GroupRequestEvent(RequestEvent):
 
 
 
-# Meta Events
+# Meta Events   OK
 class MetaEvent(OriginEvent):
     """元事件"""
 
@@ -717,8 +1003,6 @@ class HeartbeatMetaEvent(MetaEvent):
 
     __event__ = "meta_event.heartbeat"
     meta_event_type: Literal["heartbeat"]
-    status: Status
-    interval: int
 
 
 _t = StringTrie(separator=".")
@@ -769,4 +1053,7 @@ __all__ = [
     "LifecycleMetaEvent",
     "HeartbeatMetaEvent",
     "get_event_model",
+    "EventTypes",
+    "SignalTypes"
 ]
+

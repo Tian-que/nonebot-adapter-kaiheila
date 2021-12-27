@@ -78,6 +78,15 @@ def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
 class ResultStore:
     _seq = 1
     _futures: Dict[Tuple[str, int], asyncio.Future] = {}
+    _sn_map = {}
+
+    @classmethod
+    def set_sn(cls, self_id: str, sn: int) -> None:
+        cls._sn_map[self_id] = sn
+    
+    @classmethod
+    def get_sn(cls, self_id: str) -> int:
+        return cls._sn_map.get(self_id, 0)
 
     @classmethod
     def get_seq(cls) -> int:

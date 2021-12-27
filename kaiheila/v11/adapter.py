@@ -24,11 +24,12 @@ from nonebot.adapters import Adapter as BaseAdapter
 from . import event
 from .bot import Bot
 from .config import Config as KaiheilaConfig
-from .event import Event, LifecycleMetaEvent, MessageEvent, NoticeEvent
+from .event import *
+from .event import OriginEvent
 from .message import Message, MessageSegment, MessageSerializer
 from .exception import NetworkError, ApiNotAvailable
 from .utils import ResultStore, log, _handle_api_result
-from . import api
+
 RECONNECT_INTERVAL = 3.0
 
 
@@ -38,7 +39,7 @@ class Adapter(BaseAdapter):
     event_models: StringTrie = StringTrie(separator=".")
     for model_name in dir(event):
         model = getattr(event, model_name)
-        if not inspect.isclass(model) or not issubclass(model, Event):
+        if not inspect.isclass(model) or not issubclass(model, OriginEvent):
             continue
         event_models["." + model.__event__] = model
 
@@ -67,6 +68,7 @@ class Adapter(BaseAdapter):
         else:
             self.driver.on_startup(self.start_forward)
             self.driver.on_shutdown(self.stop_forward)
+            self.driver.on_bot_connect(self.start_heartbeat)
 
     @overrides(BaseAdapter)
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
@@ -286,6 +288,7 @@ class Adapter(BaseAdapter):
                             bot = Bot(self, str(self_id), event.get_session_id(), token)
                             self.connections[str(self_id)] = ws
                             self.bot_connect(bot)
+
                             log(
                                 "INFO",
                                 f"<y>Bot {escape_tag(str(self_id))}</y> connected",
@@ -311,6 +314,20 @@ class Adapter(BaseAdapter):
 
             await asyncio.sleep(RECONNECT_INTERVAL)
 
+    async def start_heartbeat(self, bot: Bot) -> None:
+        """
+        每30s一次心跳
+        :return:
+        """
+        while self.connections.get(bot.self_id):
+            await self.connections.get(bot.self_id).send(json.dumps({
+                "s": 2,
+                "sn": ResultStore.get_sn(bot.self_id) # 客户端目前收到的最新的消息 sn
+            }))
+            # await ResultStore.fetch(client_id, seq, 6)
+            await asyncio.sleep(26)
+
+
     @classmethod
     def json_to_event(
         cls, json_data: Any, self_id: Optional[str] = None,
@@ -321,61 +338,76 @@ class Adapter(BaseAdapter):
         signal = json_data['s']
 
         # HELLO 成功连接WS的回执
-        if signal == 1 and json_data['d']['code'] == 0:
+        if signal == SignalTypes.HELLO and json_data['d']['code'] == 0:
             data = json_data['d']
             data["post_type"] = "meta_event"
             data["sub_type"] = 'connect'
             data["meta_event_type"] = "lifecycle"
             return LifecycleMetaEvent.parse_obj(data)
 
-        if "type" not in json_data["d"]:
-            if self_id is not None:
-                ResultStore.add_result(self_id, json_data)
-            return
+        # bot自身发出请求的响应
+        # if "type" not in json_data["d"]:
+        #     if self_id is not None:
+        #         ResultStore.add_result(self_id, json_data)
+        #     return
 
+        if signal == SignalTypes.PONG:
+            data = dict()
+            data["post_type"] = "meta_event"
+            data["meta_event_type"] = "heartbeat"
+            log(
+                "DEBUG",
+                f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",
+            )
+            return HeartbeatMetaEvent.parse_obj(data)
 
-
-        # PONG 心跳包，先不处理
-        # Todo: 心跳包处理
-        if signal == 3:
-            return
 
         # 先屏蔽除 Event 的其他包
         # Todo: remove it
         if signal != 0:
             return
 
+        if signal == SignalTypes.EVENT:
+            ResultStore.set_sn(self_id, json_data["sn"])
+
         try:
             data = json_data['d']
             extra = data.get("extra")
 
             data['self_id'] = self_id
-            data['sub_type'] = extra.get('type')
-            data['message_type'] = data.get('channel_type')
             message = Message.template("{}").format(data["content"])
             data['message'] = message
+            data['message_id'] = data.get('msg_id')
+            data['group_id'] = data.get('target_id')
+            data['time'] = data.get('msg_timestamp')
+            data['user_id'] = data.get('author_id') if data.get('author_id') != "1" else "SYSTEM"
 
-            if data['type'] == 255:
-                event = NoticeEvent.parse_obj(data)
+            if data['type'] == EventTypes.SYS:
+                data['post_type'] = "notice"
+                data['notice_type'] = extra.get('type')
+                # data['notice_type'] = data.get('channel_type').lower()
+                # data['notice_type'] = 'private' if data['notice_type'] == 'person' else data['notice_type']
             else:
-                event = MessageEvent.parse_obj(data)
+                data['post_type'] = "message"
+                data['sub_type'] = [i.name.lower() for i in EventTypes if i.value == extra.get('type')][0]
+                data['message_type'] = data.get('channel_type').lower()
+                data['message_type'] = 'private' if data['message_type'] == 'person' else data['message_type']
 
+            post_type = data['post_type']
+            detail_type = data.get(f"{post_type}_type")
+            detail_type = f".{detail_type}" if detail_type else ""
+            sub_type = data.get('sub_type')
+            sub_type = f".{sub_type}" if sub_type else ""
 
-
-            # post_type = json_data["post_type"]
-            # detail_type = json_data.get(f"{post_type}_type")
-            # detail_type = f".{detail_type}" if detail_type else ""
-            # sub_type = json_data.get("sub_type")
-            # sub_type = f".{sub_type}" if sub_type else ""
-            # models = cls.get_event_model(post_type + detail_type + sub_type)
-            # for model in models:
-            #     try:
-            #         event = model.parse_obj(json_data)
-            #         break
-            #     except Exception as e:
-            #         log("DEBUG", "Event Parser Error", e)
-            # else:
-            #     event = Event.parse_obj(json_data)
+            models = cls.get_event_model(post_type + detail_type + sub_type)
+            for model in models:
+                try:
+                    event = model.parse_obj(data)
+                    break
+                except Exception as e:
+                    log("DEBUG", "Event Parser Error", e)
+            else:
+                event = Event.parse_obj(json_data)
 
             return event
         except Exception as e:
