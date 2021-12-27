@@ -17,6 +17,7 @@ driver.register_adapter(khlbot)
 
 
 from kaiheila.v11.event import Event, MessageEvent
+from kaiheila.v11.bot import Bot
 
 from nonebot.rule import to_me
 from nonebot.adapters import Message, Event
@@ -27,9 +28,9 @@ from nonebot.plugin import on_command
 
 test = on_command("test")
 @test.handle()
-async def test_escape(event: Event, message: Message = CommandArg()):
+async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
 
-    await test.send(message=message)
+    await bot.message_create(target_id = event.target_id, quote = event.msg_id ,content= message)
 
 if __name__ == "__main__":
     nonebot.run()

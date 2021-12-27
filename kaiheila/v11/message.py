@@ -2,13 +2,17 @@ import re
 from io import BytesIO
 from pathlib import Path
 from base64 import b64encode
-from typing import Any, Type, Tuple, Union, Mapping, Iterable, Optional, cast
+from typing import Any, Type, Tuple, Union, Mapping, Iterable, Optional, Dict, List, cast
 
+import itertools
+from dataclasses import dataclass
 from nonebot.typing import overrides
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 
 from .utils import log, _b2s, escape, unescape
+
+import json
 
 
 class MessageSegment(BaseMessageSegment["Message"]):
@@ -319,3 +323,75 @@ class Message(BaseMessage[MessageSegment]):
     @overrides(BaseMessage)
     def extract_plain_text(self) -> str:
         return "".join(seg.data["text"] for seg in self if seg.is_text())
+
+
+@dataclass
+class MessageSerializer:
+    """
+    开黑啦 协议 Message 序列化器。
+    """
+    message: Message
+
+    def serialize(self) -> Tuple[str, str]:
+        segments = list(self.message)
+        last_segment_type: str = ""
+        if len(segments) > 1:
+            msg = {"title": "", "content": [[]]}
+            for segment in segments:
+                if segment == "image":
+                    if last_segment_type != "image":
+                        msg["content"].append([])
+                else:
+                    if last_segment_type == "image":
+                        msg["content"].append([])
+                msg["content"][-1].append({
+                    "tag": segment.type if segment.type != "image" else "img",
+                    **segment.data
+                })
+                last_segment_type = segment.type
+            return "post", json.dumps({"zh_cn": {**msg}})
+
+        else:
+            return self.message[0].type, self.message[0].data['text']
+
+
+@dataclass
+class MessageDeserializer:
+    """
+    飞书 协议 Message 反序列化器。
+    """
+    type: str
+    data: Dict[str, Any]
+    mentions: Optional[List[dict]]
+
+    def deserialize(self) -> Message:
+        dict_mention = {}
+        if self.mentions:
+            for mention in self.mentions:
+                dict_mention[mention["key"]] = mention
+
+        if self.type == "post":
+            msg = Message()
+            if self.data["title"] != "":
+                msg += MessageSegment("text", {'text': self.data["title"]})
+
+            for seg in itertools.chain(*self.data["content"]):
+                tag = seg.pop("tag")
+                if tag == "at":
+                    seg["user_name"] = dict_mention[seg["user_id"]]["name"]
+                    seg["user_id"] = dict_mention[
+                        seg["user_id"]]["id"]["open_id"]
+
+                msg += MessageSegment(tag if tag != "img" else "image", seg)
+
+            return msg._merge()
+        elif self.type == "text":
+            for key, mention in dict_mention.items():
+                self.data["text"] = self.data["text"].replace(
+                    key, f"@{mention['name']}")
+            self.data["mentions"] = dict_mention
+
+            return Message(MessageSegment(self.type, self.data))
+
+        else:
+            return Message(MessageSegment(self.type, self.data))

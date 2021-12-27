@@ -17,8 +17,6 @@ from nonebot.drivers import (
     WebSocketServerSetup,
 )
 
-API = f'https://www.kaiheila.cn/api/v3'
-
 import aiohttp
 import zlib
 from nonebot.adapters import Adapter as BaseAdapter
@@ -27,10 +25,10 @@ from . import event
 from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import Event, LifecycleMetaEvent, MessageEvent, NoticeEvent
-from .message import Message, MessageSegment
+from .message import Message, MessageSegment, MessageSerializer
 from .exception import NetworkError, ApiNotAvailable
 from .utils import ResultStore, log, _handle_api_result
-
+from . import api
 RECONNECT_INTERVAL = 3.0
 
 
@@ -48,6 +46,7 @@ class Adapter(BaseAdapter):
     def __init__(self, driver: Driver, **kwargs: Any):
         super().__init__(driver, **kwargs)
         self.kaiheila_config: KaiheilaConfig = KaiheilaConfig(**self.config.dict())
+        self.api_root = f'https://www.kaiheila.cn/api/v3/'
         self.connections: Dict[str, WebSocket] = {}
         self.tasks: List[asyncio.Task] = []
         self.setup()
@@ -72,23 +71,23 @@ class Adapter(BaseAdapter):
     @overrides(BaseAdapter)
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
         if isinstance(self.driver, ForwardDriver):
-            api_root = self.config.api_root.get(bot.self_id)
-            if not api_root:
+            if not self.api_root:
                 raise ApiNotAvailable
-            elif not api_root.endswith("/"):
-                api_root += "/"
 
             headers = {"Content-Type": "application/json"}
             if bot.token is not None:
-                headers["Authorization"] = (
-                    "Bearer " + bot.token
-                )
+                headers[
+                    "Authorization"
+                ] = f"Bot {bot.token}"
+
+            msg_type, content = MessageSerializer(data['content']).serialize()
+            data['content'] = content
 
             request = Request(
                 "POST",
-                api_root + api,
+                self.api_root + api.replace('_', '/'),
                 headers=headers,
-                content=json.dumps(data, cls=DataclassEncoder),
+                data=json.dumps(data),
                 timeout=self.config.api_timeout,
             )
 
@@ -211,7 +210,7 @@ class Adapter(BaseAdapter):
                 }
                 params = {'compress': 1 if self.kaiheila_config.compress else 0}
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{API}/gateway/index",
+                    async with session.get(f"{self.api_root}gateway/index",
                                             headers=headers,
                                             params=params) as resp:
                             
