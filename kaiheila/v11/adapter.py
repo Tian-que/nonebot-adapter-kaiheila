@@ -382,7 +382,7 @@ class Adapter(BaseAdapter):
             data['time'] = data.get('msg_timestamp')
             data['user_id'] = data.get('author_id') if data.get('author_id') != "1" else "SYSTEM"
 
-            if data['type'] == EventTypes.SYS:
+            if data['type'] == EventTypes.sys:
                 data['post_type'] = "notice"
                 data['notice_type'] = extra.get('type')
                 # data['notice_type'] = data.get('channel_type').lower()

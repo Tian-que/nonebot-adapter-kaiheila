@@ -16,7 +16,6 @@ from .exception import NoLogException
 if TYPE_CHECKING:
     from .bot import Bot
 
-
 class EventTypes(IntEnum):
     """
     事件主要格式
@@ -26,14 +25,14 @@ class EventTypes(IntEnum):
         https://developer.kaiheila.cn/doc/event/event-introduction#事件主要格式
     """
 
-    TEXT = 1
-    IMAGE = 2
-    VIDEO = 3
-    FILE = 4
-    AUDIO = 8
-    KMarkdown = 9
-    CARD = 10
-    SYS = 255
+    text = 1
+    image = 2
+    video = 3
+    file = 4
+    audio = 8
+    kmarkdown = 9
+    card = 10
+    sys = 255
 
 class SignalTypes(IntEnum):
     """
@@ -62,7 +61,6 @@ class Role(BaseModel):
     mentionable: Optional[int] = Field(None)
     permissions: Optional[int] = Field(None)
 
-
 class Channel(BaseModel):
     id_: Optional[str] = Field(None, alias="id")
     name: Optional[str] = Field(None)
@@ -79,7 +77,6 @@ class Channel(BaseModel):
     master_id: Optional[str] = Field(None)
     permission_sync: Optional[int] = Field(None)
     limit_amount: Optional[int] = Field(None)
-
 
 class User(BaseModel):
     """
@@ -102,7 +99,6 @@ class User(BaseModel):
     joined_at: Optional[int] = Field(None)
     active_time: Optional[int] = Field(None)
 
-
 class Guild(BaseModel):
     id_: Optional[str] = Field(None, alias="id")
     name: Optional[str] = Field(None)
@@ -118,11 +114,9 @@ class Guild(BaseModel):
     roles: Optional[List[Role]] = Field(None)
     channels: Optional[List[Channel]] = Field(None)
 
-
 class Emoji(BaseModel):
     id_: str = Field(alias="id")
     name: str
-
 
 class Attachment(BaseModel):
     type_: Optional[int] = Field(None, alias="type")
@@ -133,7 +127,6 @@ class Attachment(BaseModel):
     duration: Optional[float] = Field(None)
     width: Optional[int] = Field(None)
     height: Optional[int] = Field(None)
-
 
 class Body(BaseModel):
     msg_id: Optional[str]
@@ -204,7 +197,6 @@ class OriginEvent(BaseEvent):
     @overrides(BaseEvent)
     def is_tome(self) -> bool:
         return False
-
 
 class Event(OriginEvent):
     """
@@ -286,7 +278,6 @@ class Status(BaseModel):
         extra = "allow"
 
 
-
 # Message Events    OK
 class MessageEvent(Event):
     """消息事件"""
@@ -340,7 +331,6 @@ class MessageEvent(Event):
     def is_tome(self) -> bool:
         return self.to_me
 
-
 class PrivateMessageEvent(MessageEvent):
     """私聊消息"""
 
@@ -362,8 +352,7 @@ class PrivateMessageEvent(MessageEvent):
             + '"'
         )
 
-
-class GroupMessageEvent(MessageEvent):
+class ChannelMessageEvent(MessageEvent):
     """公共频道消息"""
 
     __event__ = "message.group"
@@ -390,7 +379,6 @@ class GroupMessageEvent(MessageEvent):
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-
 # Notice Events
 class NoticeEvent(Event):
     """通知事件"""
@@ -406,24 +394,10 @@ class NoticeEvent(Event):
             f".{sub_type}" if sub_type else ""
         )
 
-# class GroupNoticeEvent(NoticeEvent):
-#     """频道通知事件"""
+# 后续看需求要不要把频道消息/公会消息单独开父类
 
-#     __event__ = "notice.group"
-#     notice_type: Literal["group"]
-#     user_id: str
-#     group_id: int
-
-#     @overrides(NoticeEvent)
-#     def get_user_id(self) -> str:
-#         return str(self.user_id)
-
-#     @overrides(NoticeEvent)
-#     def get_session_id(self) -> str:
-#         return f"group_{self.group_id}_{self.user_id}"
-
-# OK
-class GroupAddReactionEvent(NoticeEvent):
+# Channel Events
+class ChannelAddReactionEvent(NoticeEvent):
     """频道内用户添加 reaction"""
 
     __event__ = "notice.added_reaction"
@@ -447,8 +421,7 @@ class GroupAddReactionEvent(NoticeEvent):
             + f'to {self.extra.body.msg_id}'
         )
 
-# OK
-class GroupDeletedReactionEvent(NoticeEvent):
+class ChannelDeletedReactionEvent(NoticeEvent):
     """频道内用户删除 reaction"""
 
     __event__ = "notice.deleted_reaction"
@@ -472,7 +445,7 @@ class GroupDeletedReactionEvent(NoticeEvent):
             + f'from {self.extra.body.msg_id}'
         )
 
-class GroupUpdatedMessageEvent(NoticeEvent):
+class ChannelUpdatedMessageEvent(NoticeEvent):
     """频道消息更新"""
 
     __event__ = "notice.updated_message"
@@ -496,7 +469,7 @@ class GroupUpdatedMessageEvent(NoticeEvent):
             + f'to "{self.extra.body.content}' + '"'
         )
 
-class GroupDeleteMessageEvent(NoticeEvent):
+class ChannelDeleteMessageEvent(NoticeEvent):
     """频道消息被删除"""
 
     __event__ = "notice.deleted_message"
@@ -519,7 +492,7 @@ class GroupDeleteMessageEvent(NoticeEvent):
             + f'delete message "{self.extra.body.msg_id}" '
         )
         
-class GroupAddedChannelEvent(NoticeEvent):
+class ChannelAddedEvent(NoticeEvent):
     """新增频道"""
 
     __event__ = "notice.added_channel"
@@ -542,7 +515,7 @@ class GroupAddedChannelEvent(NoticeEvent):
             + f'新增频道 "[{self.extra.body.name}:{self.extra.body.id}]' + '"'
         )
 
-class GroupUpdatedChannelEvent(NoticeEvent):
+class ChannelUpdatedEvent(NoticeEvent):
     """修改频道信息"""
 
     __event__ = "notice.updated_channel"
@@ -565,7 +538,7 @@ class GroupUpdatedChannelEvent(NoticeEvent):
             + f'修改频道信息 "[{self.extra.body.name}:{self.extra.body.id}]' + '"'
         )
 
-class GroupDeleteChannelEvent(NoticeEvent):
+class ChannelDeleteEvent(NoticeEvent):
     """删除频道"""
 
     __event__ = "notice.deleted_channel"
@@ -588,7 +561,7 @@ class GroupDeleteChannelEvent(NoticeEvent):
             + f'删除频道 "[{self.extra.body.id}]' + '"'
         )
 
-class GroupPinnedMessageEvent(NoticeEvent):
+class ChannelPinnedMessageEvent(NoticeEvent):
     """新增频道置顶消息"""
 
     __event__ = "notice.pinned_message"
@@ -611,7 +584,7 @@ class GroupPinnedMessageEvent(NoticeEvent):
             + f'新增频道置顶消息 "{self.extra.body.msg_id}" '
         )
 
-class GroupUnpinnedMessageEvent(NoticeEvent):
+class ChannelUnpinnedMessageEvent(NoticeEvent):
     """取消频道置顶消息"""
 
     __event__ = "notice.unpinned_message"
@@ -634,9 +607,44 @@ class GroupUnpinnedMessageEvent(NoticeEvent):
             + f'取消频道置顶消息 "{self.extra.body.msg_id}" '
         )
      
+# Private Events
+class PrivateUpdateMessageEvent(NoticeEvent):
+    """私聊消息更新"""
 
+    __event__ = "notice.updated_private_message"
+    notice_type: Literal["updated_private_message"]
+    user_id: str
 
-# OK
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.author_id} '
+            + f'修改了消息 {self.extra.body.msg_id} '
+            + f'to "{self.extra.body.content}' + '"'
+        )
+
+class PrivateDeleteMessageEvent(NoticeEvent):
+    """私聊消息删除"""
+
+    __event__ = "notice.deleted_private_message"
+    notice_type: Literal["deleted_private_message"]
+    user_id: str
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.author_id} '
+            + f'删除了消息 {self.extra.body.msg_id} '
+        )
+
 class PrivateAddReactionEvent(NoticeEvent):
     """私聊内用户添加 reaction"""
 
@@ -651,321 +659,470 @@ class PrivateAddReactionEvent(NoticeEvent):
     @overrides(Event)
     def get_event_description(self) -> str:
         return (
-            f'Notice {self.message_id} from {self.extra.body.user_id} "'
+            f'Notice {self.message_id} from {self.extra.body.user_id} '
             + f'add Emoji {self.extra.body.emoji.name} '
-            + f'to {self.extra.body.msg_id}' + '"'
+            + f'to "{self.extra.body.msg_id}' + '"'
         )
 
+class PrivateAddReactionEvent(NoticeEvent):
+    """私聊内用户取消 reaction"""
 
-class GroupUploadNoticeEvent(NoticeEvent):
-    """群文件上传事件"""
-
-    __event__ = "notice.group_upload"
-    notice_type: Literal["group_upload"]
-    user_id: int
-    group_id: int
-    file: File
+    __event__ = "notice.private_deleted_reaction"
+    notice_type: Literal["private_deleted_reaction"]
+    user_id: str
 
     @overrides(NoticeEvent)
     def get_user_id(self) -> str:
         return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class GroupAdminNoticeEvent(NoticeEvent):
-    """群管理员变动"""
-
-    __event__ = "notice.group_admin"
-    notice_type: Literal["group_admin"]
-    sub_type: str
-    user_id: int
-    group_id: int
-
-    @overrides(NoticeEvent)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class GroupDecreaseNoticeEvent(NoticeEvent):
-    """群成员减少事件"""
-
-    __event__ = "notice.group_decrease"
-    notice_type: Literal["group_decrease"]
-    sub_type: str
-    user_id: int
-    group_id: int
-    operator_id: int
-
-    @overrides(NoticeEvent)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class GroupIncreaseNoticeEvent(NoticeEvent):
-    """群成员增加事件"""
-
-    __event__ = "notice.group_increase"
-    notice_type: Literal["group_increase"]
-    sub_type: str
-    user_id: int
-    group_id: int
-    operator_id: int
-
-    @overrides(NoticeEvent)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class GroupBanNoticeEvent(NoticeEvent):
-    """群禁言事件"""
-
-    __event__ = "notice.group_ban"
-    notice_type: Literal["group_ban"]
-    sub_type: str
-    user_id: int
-    group_id: int
-    operator_id: int
-    duration: int
-
-    @overrides(NoticeEvent)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class FriendAddNoticeEvent(NoticeEvent):
-    """好友添加事件"""
-
-    __event__ = "notice.friend_add"
-    notice_type: Literal["friend_add"]
-    user_id: int
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return str(self.user_id)
-
-
-class GroupRecallNoticeEvent(NoticeEvent):
-    """群消息撤回事件"""
-
-    __event__ = "notice.group_recall"
-    notice_type: Literal["group_recall"]
-    user_id: int
-    group_id: int
-    operator_id: int
-    message_id: int
 
     @overrides(Event)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class FriendRecallNoticeEvent(NoticeEvent):
-    """好友消息撤回事件"""
-
-    __event__ = "notice.friend_recall"
-    notice_type: Literal["friend_recall"]
-    user_id: int
-    message_id: int
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return str(self.user_id)
-
-
-class NotifyEvent(NoticeEvent):
-    """提醒事件"""
-
-    __event__ = "notice.notify"
-    notice_type: Literal["notify"]
-    sub_type: str
-    user_id: int
-    group_id: int
-
-    @overrides(NoticeEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(NoticeEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.user_id}"
-
-
-class PokeNotifyEvent(NotifyEvent):
-    """戳一戳提醒事件"""
-
-    __event__ = "notice.notify.poke"
-    sub_type: Literal["poke"]
-    group_id: int
-    group_id: Optional[int] = None
-
-    @overrides(Event)
-    def is_tome(self) -> bool:
-        return self.group_id == self.self_id
-
-    @overrides(NotifyEvent)
-    def get_session_id(self) -> str:
-        if not self.group_id:
-            return str(self.user_id)
-        return super().get_session_id()
-
-
-class LuckyKingNotifyEvent(NotifyEvent):
-    """群红包运气王提醒事件"""
-
-    __event__ = "notice.notify.lucky_king"
-    sub_type: Literal["lucky_king"]
-    group_id: int
-
-    @overrides(Event)
-    def is_tome(self) -> bool:
-        return self.group_id == self.self_id
-
-    @overrides(NotifyEvent)
-    def get_user_id(self) -> str:
-        return str(self.group_id)
-
-    @overrides(NotifyEvent)
-    def get_session_id(self) -> str:
-        return f"group_{self.group_id}_{self.group_id}"
-
-
-class HonorNotifyEvent(NotifyEvent):
-    """群荣誉变更提醒事件"""
-
-    __event__ = "notice.notify.honor"
-    sub_type: Literal["honor"]
-    honor_type: str
-
-    @overrides(Event)
-    def is_tome(self) -> bool:
-        return self.user_id == self.self_id
-
-
-# Request Events
-class RequestEvent(Event):
-    """请求事件"""
-
-    __event__ = "request"
-    post_type: Literal["request"]
-    request_type: str
-
-    @overrides(Event)
-    def get_event_name(self) -> str:
-        sub_type = getattr(self, "sub_type", None)
-        return f"{self.post_type}.{self.request_type}" + (
-            f".{sub_type}" if sub_type else ""
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.extra.body.user_id} '
+            + f'delete Emoji {self.extra.body.emoji.name} '
+            + f'from "{self.extra.body.msg_id}' + '"'
         )
 
+# Guild Member Events
+class GuildMemberIncreaseNoticeEvent(NoticeEvent):
+    """新成员加入服务器"""
 
-class FriendRequestEvent(RequestEvent):
-    """加好友请求事件"""
-
-    __event__ = "request.friend"
-    request_type: Literal["friend"]
-    user_id: int
-    comment: str
-    flag: str
-
-    @overrides(RequestEvent)
-    def get_user_id(self) -> str:
-        return str(self.user_id)
-
-    @overrides(RequestEvent)
-    def get_session_id(self) -> str:
-        return str(self.user_id)
-
-    async def approve(self, bot: "Bot", remark: str = ""):
-        return await bot.set_friend_add_request(
-            flag=self.flag, approve=True, remark=remark
-        )
-
-    async def reject(self, bot: "Bot"):
-        return await bot.set_friend_add_request(flag=self.flag, approve=False)
-
-
-class GroupRequestEvent(RequestEvent):
-    """加群请求/邀请事件"""
-
-    __event__ = "request.group"
-    request_type: Literal["group"]
-    sub_type: str
+    __event__ = "notice.joined_guild"
+    notice_type: Literal["joined_guild"]
+    user_id: str
     group_id: int
-    user_id: int
-    comment: str
-    flag: str
 
-    @overrides(RequestEvent)
+    @overrides(NoticeEvent)
     def get_user_id(self) -> str:
         return str(self.user_id)
 
-    @overrides(RequestEvent)
+    @overrides(NoticeEvent)
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-    async def approve(self, bot: "Bot"):
-        return await bot.set_group_add_request(
-            flag=self.flag, sub_type=self.sub_type, approve=True
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'用户 "{self.extra.body.user_id}" 加入服务器'
         )
 
-    async def reject(self, bot: "Bot", reason: str = ""):
-        return await bot.set_group_add_request(
-            flag=self.flag, sub_type=self.sub_type, approve=False, reason=reason
+class GuildMemberDecreaseNoticeEvent(NoticeEvent):
+    """服务器成员退出"""
+
+    __event__ = "notice.exited_guild"
+    notice_type: Literal["exited_guild"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'用户 "{self.extra.body.user_id}" 退出服务器'
         )
 
+class GuildMemberUpdateNoticeEvent(NoticeEvent):
+    """服务器成员信息更新(修改昵称)"""
 
+    __event__ = "notice.updated_guild_member"
+    notice_type: Literal["updated_guild_member"]
+    user_id: str
+    group_id: int
 
-# Meta Events   OK
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'用户 "{self.extra.body.user_id}" 修改昵称为 "{self.extra.body.nickname}"'
+        )
+
+class GuildMemberOnlineNoticeEvent(NoticeEvent):
+    """服务器成员上线"""
+
+    __event__ = "notice.guild_member_online"
+    notice_type: Literal["guild_member_online"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'成员 "{self.extra.body.user_id}" 上线'
+        )
+     
+class GuildMemberOfflineNoticeEvent(NoticeEvent):
+    """服务器成员下线"""
+
+    __event__ = "notice.guild_member_offline"
+    notice_type: Literal["guild_member_offline"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'成员 "{self.extra.body.user_id}" 离线'
+        )
+     
+# Guild Role Events
+class GuildRoleAddNoticeEvent(NoticeEvent):
+    """服务器角色增加"""
+
+    __event__ = "notice.added_role"
+    notice_type: Literal["added_role"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'增加角色 "{self.extra.body.role_id}:{self.extra.body.name}" '
+        )
+     
+class GuildRoleDeleteNoticeEvent(NoticeEvent):
+    """服务器角色增加"""
+
+    __event__ = "notice.deleted_role"
+    notice_type: Literal["deleted_role"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'删除角色 "{self.extra.body.role_id}:{self.extra.body.name}" '
+        )
+
+class GuildRoleUpdateNoticeEvent(NoticeEvent):
+    """服务器角色增加"""
+
+    __event__ = "notice.updated_role"
+    notice_type: Literal["updated_role"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'更改角色 "{self.extra.body.role_id}:{self.extra.body.name}" '
+        )
+
+# Guild Events
+class GuildUpdateNoticeEvent(NoticeEvent):
+    """服务器信息更新"""
+
+    __event__ = "notice.updated_guild"
+    notice_type: Literal["updated_guild"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'信息更新 "{self.extra.body.id}:{self.extra.body.name}" '
+        )
+
+class GuildDeleteNoticeEvent(NoticeEvent):
+    """服务器删除"""
+
+    __event__ = "notice.deleted_guild"
+    notice_type: Literal["deleted_guild"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
+            + f'删除 "{self.extra.body.id}:{self.extra.body.name}" '
+        )
+
+class GuildAddBlockListNoticeEvent(NoticeEvent):
+    """服务器封禁用户"""
+
+    __event__ = "notice.added_block_list"
+    notice_type: Literal["added_block_list"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        block_list = ' '.join(self.extra.body.user_id)
+        return (
+            f'Notice {self.message_id} from {self.extra.operator_id}@[服务器:{self.target_id}] '
+            + f'封禁用户 "{self.extra.body.remark}:{block_list}" '
+        )
+
+class GuildDeleteBlockListNoticeEvent(NoticeEvent):
+    """服务器取消封禁用户"""
+
+    __event__ = "notice.deleted_block_list"
+    notice_type: Literal["deleted_block_list"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        block_list = ' '.join(self.extra.body.user_id)
+        return (
+            f'Notice {self.message_id} from {self.extra.operator_id}@[服务器:{self.target_id}] '
+            + f'取消封禁用户 "{block_list}" '
+        )
+
+# User Events
+class UserJoinAudioChannelNoticeEvent(NoticeEvent):
+    """用户加入语音频道"""
+
+    __event__ = "notice.joined_channel"
+    notice_type: Literal["joined_channel"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'用户 "{self.extra.body.user_id}" 加入语音频道 '
+        )
+
+class UserJoinAudioChannelEvent(NoticeEvent):
+    """用户退出语音频道"""
+
+    __event__ = "notice.exited_channel"
+    notice_type: Literal["exited_channel"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
+            + f'用户 "{self.extra.body.user_id}" 退出语音频道 '
+        )
+
+class UserInfoUpdateNoticeEvent(NoticeEvent):
+    """
+    用户信息更新
+
+    该事件与服务器无关, 遵循以下条件:
+        - 仅当用户的 用户名 或 头像 变更时
+        - 仅通知与该用户存在关联的用户或 Bot
+            a. 存在聊天会话
+            b. 双方好友关系
+    """
+
+    __event__ = "notice.user_updated"
+    notice_type: Literal["user_updated"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id} '
+            + f'用户变更信息 "{self.extra.body.username}:{self.extra.body.avatar}" '
+        ) 
+
+class SelfJoinGuildNoticeEvent(NoticeEvent):
+    """
+    自己新加入服务器
+
+    当自己被邀请或主动加入新的服务器时, 产生该事件
+    """
+
+    __event__ = "notice.self_joined_guild"
+    notice_type: Literal["self_joined_guild"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id} '
+            + f'Bot 加入服务器 "{self.extra.body.guild_id}" '
+        )
+
+class SelfExitGuildNoticeEvent(NoticeEvent):
+    """
+    自己退出服务器
+
+    当自己被踢出服务器或被拉黑或主动退出服务器时, 产生该事件
+    """
+
+    __event__ = "notice.self_exited_guild"
+    notice_type: Literal["self_exited_guild"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id} '
+            + f'Bot 退出服务器 "{self.extra.body.guild_id}" '
+        )
+
+class CartBtnClickNoticeEvent(NoticeEvent):
+    """
+    Card 消息中的 Button 点击事件
+    """
+
+    __event__ = "notice.message_btn_click"
+    notice_type: Literal["message_btn_click"]
+    user_id: str
+    group_id: int
+
+    @overrides(NoticeEvent)
+    def get_user_id(self) -> str:
+        return str(self.user_id)
+
+    @overrides(NoticeEvent)
+    def get_session_id(self) -> str:
+        return f"group_{self.group_id}_{self.user_id}"
+
+    @overrides(Event)
+    def get_event_description(self) -> str:
+        return (
+            f'Notice {self.message_id} from {self.author_id} '
+            + f'用户 "{self.extra.body.user_id}@{self.extra.body.user_info.nickname}" 点击 Card 消息'
+            + f' "{self.extra.body.msg_id}" 中的 Button '
+        )
+
+# Meta Events
 class MetaEvent(OriginEvent):
     """元事件"""
 
@@ -984,7 +1141,6 @@ class MetaEvent(OriginEvent):
     def get_log_string(self) -> str:
         raise NoLogException
 
-
 class LifecycleMetaEvent(MetaEvent):
     """生命周期元事件"""
 
@@ -996,7 +1152,6 @@ class LifecycleMetaEvent(MetaEvent):
     @overrides(BaseEvent)
     def get_session_id(self) -> str:
         return self.session_id
-
 
 class HeartbeatMetaEvent(MetaEvent):
     """心跳元事件"""
@@ -1010,12 +1165,12 @@ _t = StringTrie(separator=".")
 # define `model` first to avoid globals changing while `for`
 model = None
 for model in globals().values():
-    if not inspect.isclass(model) or not issubclass(model, Event):
+    if not inspect.isclass(model) or not issubclass(model, OriginEvent):
         continue
     _t["." + model.__event__] = model
 
 
-def get_event_model(event_name) -> List[Type[Event]]:
+def get_event_model(event_name) -> List[Type[OriginEvent]]:
     """
     :说明:
 
@@ -1029,31 +1184,55 @@ def get_event_model(event_name) -> List[Type[Event]]:
 
 
 __all__ = [
+    "EventTypes",
+    "SignalTypes",
+    "Role",
+    "Channel",
+    "User",
+    "Guild",
+    "Emoji",
+    "Attachment",
+    "Body",
+    "Extra",
+    "OriginEvent",
     "Event",
     "MessageEvent",
     "PrivateMessageEvent",
-    "GroupMessageEvent",
+    "ChannelMessageEvent",
     "NoticeEvent",
-    "GroupUploadNoticeEvent",
-    "GroupAdminNoticeEvent",
-    "GroupDecreaseNoticeEvent",
-    "GroupIncreaseNoticeEvent",
-    "GroupBanNoticeEvent",
-    "FriendAddNoticeEvent",
-    "GroupRecallNoticeEvent",
-    "FriendRecallNoticeEvent",
-    "NotifyEvent",
-    "PokeNotifyEvent",
-    "LuckyKingNotifyEvent",
-    "HonorNotifyEvent",
-    "RequestEvent",
-    "FriendRequestEvent",
-    "GroupRequestEvent",
+    "ChannelAddReactionEvent",
+    "ChannelDeletedReactionEvent",
+    "ChannelUpdatedMessageEvent",
+    "ChannelDeleteMessageEvent",
+    "ChannelAddedEvent",
+    "ChannelUpdatedEvent",
+    "ChannelDeleteEvent",
+    "ChannelPinnedMessageEvent",
+    "ChannelUnpinnedMessageEvent",
+    "PrivateUpdateMessageEvent",
+    "PrivateDeleteMessageEvent",
+    "PrivateAddReactionEvent",
+    "PrivateAddReactionEvent",
+    "GuildMemberIncreaseNoticeEvent",
+    "GuildMemberDecreaseNoticeEvent",
+    "GuildMemberUpdateNoticeEvent",
+    "GuildMemberOnlineNoticeEvent",
+    "GuildMemberOfflineNoticeEvent",
+    "GuildRoleAddNoticeEvent",
+    "GuildRoleDeleteNoticeEvent",
+    "GuildRoleUpdateNoticeEvent",
+    "GuildUpdateNoticeEvent",
+    "GuildDeleteNoticeEvent",
+    "GuildAddBlockListNoticeEvent",
+    "GuildDeleteBlockListNoticeEvent",
+    "UserJoinAudioChannelNoticeEvent",
+    "UserJoinAudioChannelEvent",
+    "UserInfoUpdateNoticeEvent",
+    "SelfJoinGuildNoticeEvent",
+    "SelfExitGuildNoticeEvent",
+    "CartBtnClickNoticeEvent",
     "MetaEvent",
     "LifecycleMetaEvent",
     "HeartbeatMetaEvent",
-    "get_event_model",
-    "EventTypes",
-    "SignalTypes"
 ]
 

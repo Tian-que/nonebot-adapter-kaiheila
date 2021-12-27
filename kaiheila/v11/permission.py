@@ -1,6 +1,6 @@
 from nonebot.permission import Permission
 
-from .event import GroupMessageEvent, PrivateMessageEvent
+from .event import ChannelMessageEvent, PrivateMessageEvent
 
 
 async def _private(event: PrivateMessageEvent) -> bool:
@@ -37,19 +37,19 @@ PRIVATE_OTHER = Permission(_private_other)
 """
 
 
-async def _group(event: GroupMessageEvent) -> bool:
+async def _group(event: ChannelMessageEvent) -> bool:
     return True
 
 
-async def _group_member(event: GroupMessageEvent) -> bool:
+async def _group_member(event: ChannelMessageEvent) -> bool:
     return event.sender.role == "member"
 
 
-async def _group_admin(event: GroupMessageEvent) -> bool:
+async def _group_admin(event: ChannelMessageEvent) -> bool:
     return event.sender.role == "admin"
 
 
-async def _group_owner(event: GroupMessageEvent) -> bool:
+async def _group_owner(event: ChannelMessageEvent) -> bool:
     return event.sender.role == "owner"
 
 
