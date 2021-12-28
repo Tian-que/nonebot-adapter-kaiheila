@@ -385,6 +385,10 @@ class Adapter(BaseAdapter):
         if signal == SignalTypes.EVENT:
             ResultStore.set_sn(self_id, json_data["sn"])
 
+        # 屏蔽 Bot 自身的消息
+        if json_data["d"]["author_id"] == self_id:
+            return
+
         try:
             data = json_data['d']
             extra = data.get("extra")
