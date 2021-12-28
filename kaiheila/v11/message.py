@@ -14,6 +14,15 @@ from nonebot.adapters import MessageSegment as BaseMessageSegment
 
 from .utils import log, _b2s, escape, unescape
 
+msg_type_map = {
+    "text": 1,
+    "image": 2,
+    "video": 3,
+    "file": 4,
+    "audio": 8,
+    "Kmarkdown": 9,
+    "Card": 10,
+}
 
 class MessageSegment(BaseMessageSegment["Message"]):
     """
@@ -37,12 +46,12 @@ class MessageSegment(BaseMessageSegment["Message"]):
             "audio": "[音频]",
             "kmarkdown": "[Kmarkdown消息]",
             "card": "[卡片消息]",
-            "sys": "[系统消息]",
         }
 
+    # 根据协议消息段类型显示消息段内容
     def __str__(self) -> str:
-        if self.type in ["text", "hongbao", "a"]:
-            return str(self.data["text"])
+        if self.type in ["text", "kmarkdown", "card"]:
+            return str(self.data["content"])
         elif self.type == "at":
             return str(f"@{self.data['user_name']}")
         else:
@@ -68,7 +77,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @staticmethod
     def text(text: str) -> "MessageSegment":
-        return MessageSegment("text", {"text": text})
+        return MessageSegment("text", {"content": text})
 
     @staticmethod
     def image(url: str) -> "MessageSegment":
@@ -186,7 +195,7 @@ class Message(BaseMessage[MessageSegment]):
                 if type_ == "text":
                     if data:
                         # only yield non-empty text segment
-                        yield MessageSegment(type_, {"text": unescape(data)})
+                        yield MessageSegment(type_, {"content": unescape(data)})
                 else:
                     data = {
                         k: unescape(v)
@@ -210,26 +219,7 @@ class MessageSerializer:
     message: Message
 
     def serialize(self) -> Tuple[str, str]:
-        segments = list(self.message)
-        last_segment_type: str = ""
-        if len(segments) > 1:
-            msg = {"title": "", "content": [[]]}
-            for segment in segments:
-                if segment == "image":
-                    if last_segment_type != "image":
-                        msg["content"].append([])
-                else:
-                    if last_segment_type == "image":
-                        msg["content"].append([])
-                msg["content"][-1].append({
-                    "tag": segment.type if segment.type != "image" else "img",
-                    **segment.data
-                })
-                last_segment_type = segment.type
-            return "post", json.dumps({"zh_cn": {**msg}})
-
-        else:
-            return self.message[0].type, self.message[0].data['text']
+        return msg_type_map[self.message[0].type], self.message[0].data['content']
 
 
 @dataclass
@@ -246,22 +236,7 @@ class MessageDeserializer:
         #     for mention in self.mentions:
         #         dict_mention[mention["key"]] = mention
 
-        if self.type == "post":
-            msg = Message()
-            if self.data["title"] != "":
-                msg += MessageSegment("text", {'text': self.data["title"]})
-
-            for seg in itertools.chain(*self.data["content"]):
-                tag = seg.pop("tag")
-                if tag == "at":
-                    seg["user_name"] = dict_mention[seg["user_id"]]["name"]
-                    seg["user_id"] = dict_mention[
-                        seg["user_id"]]["id"]["open_id"]
-
-                msg += MessageSegment(tag if tag != "img" else "image", seg)
-
-            return msg._merge()
-        elif self.type == 1:
+        if self.type == 1:
             return Message(MessageSegment.text(self.datas["content"]))
         elif self.type == 2:
             return Message(MessageSegment.image(self.datas["content"]))

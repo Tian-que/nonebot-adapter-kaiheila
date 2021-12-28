@@ -17,7 +17,7 @@ driver.register_adapter(khlbot)
 
 
 from kaiheila.v11.event import Event, MessageEvent
-from kaiheila.v11.bot import Bot
+from kaiheila.v11.bot import Bot, send
 
 from nonebot.rule import to_me
 from nonebot.adapters import Message, Event
@@ -30,7 +30,13 @@ test = on_command("test")
 @test.handle()
 async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
 
-    await bot.message_create(target_id = event.target_id, quote = event.msg_id ,content= message)
+    await bot.send(event, message)
+
+test2 = on_command("test2")
+@test2.handle()
+async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
+
+    await send(bot, event, message = 'test', reply_sender = True, is_temp_msg = True)
 
 if __name__ == "__main__":
     nonebot.run()

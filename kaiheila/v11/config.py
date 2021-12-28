@@ -10,6 +10,7 @@ class BotConfig(TypedDict):
     client_id: str
     token: str
     client_secret: str
+    
 
 class Config(BaseModel):
     """

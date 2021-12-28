@@ -6,8 +6,8 @@ from nonebot.message import handle_event
 
 from nonebot.adapters import Bot as BaseBot
 
-from .utils import log, escape
-from .message import Message, MessageSegment
+from .utils import log
+from .message import Message, MessageSegment, MessageSerializer
 from .event import Event, Reply, MessageEvent
 
 if TYPE_CHECKING:
@@ -147,37 +147,44 @@ async def send(
     bot: "Bot",
     event: Event,
     message: Union[str, Message, MessageSegment],
-    at_sender: bool = False,
+    reply_sender: bool = False,
+    is_temp_msg: bool = False,
     **kwargs: Any,
 ) -> Any:
-    message = (
-        escape(message, escape_comma=False) if isinstance(message, str) else message
-    )
-    msg = message if isinstance(message, Message) else Message(message)
 
-    at_sender = at_sender and bool(getattr(event, "user_id", None))
+    # 保证Message格式
+    message = message if isinstance(message, Message) else Message(message)
 
+    # 构造参数
     params = {}
-    if getattr(event, "user_id", None):
-        params["user_id"] = getattr(event, "user_id")
-    if getattr(event, "group_id", None):
-        params["group_id"] = getattr(event, "group_id")
-    params.update(kwargs)
 
-    # todo
-    # if "message_type" not in params:
-    #     if params.get("group_id", None):
-    #         params["message_type"] = "group"
-    #     elif params.get("user_id", None):
-    #         params["message_type"] = "private"
-    #     else:
-    #         raise ValueError("Cannot guess message type to reply!")
+    # type & content
+    params["type"], params["content"] = MessageSerializer(message).serialize()
 
-    if at_sender and params["message_type"] != "private":
-        params["message"] = MessageSegment.at(params["user_id"]) + " " + msg
+    # quote
+    if reply_sender:
+        params["quote"] = getattr(event, "message_id")
+
+    # api 
+    if event.channel_type == 'GROUP':
+
+        # temp_target_id
+        if is_temp_msg:
+            params["temp_target_id"] = getattr(event, "user_id")
+
+        # target_id
+        if getattr(event, "target_id", None):
+            params["target_id"] = getattr(event, "target_id")
+
+        api = 'message/create'
     else:
-        params["message"] = msg
-    return await bot.send_msg(**params)
+        # target_id
+        if getattr(event, "target_id", None):
+            params["target_id"] = getattr(event, "user_id")
+
+        api = 'direct-message/create'
+
+    return await bot.call_api(api = api, **params)
 
 
 class Bot(BaseBot):
@@ -189,18 +196,20 @@ class Bot(BaseBot):
         ["Bot", Event, Union[str, Message, MessageSegment]], Any
     ] = send
 
-    def __init__(self, adapter: "Adapter", self_id: str, session_id: str, token: str):
+    def __init__(self, adapter: "Adapter", self_id: str, session_id: str, name: str, token: str):
         """
         :参数:
 
           * ``adapter: Adapter``: 适配器
           * ``self_id: str``: 机器人 ID
           * ``session_id``: 会话 ID
+          * ``name: str``: 机器人用户名
           * ``token``: 机器人 token
 
         """
         super().__init__(adapter, self_id)
         self.session_id: str = session_id
+        self_name: str = name
         self.token: str = token
 
     @overrides(BaseBot)
@@ -208,7 +217,7 @@ class Bot(BaseBot):
         """
         :说明:
 
-          调用 OneBot 协议 API
+          调用 kaiheila 协议 API
 
         :参数:
 
@@ -243,6 +252,7 @@ class Bot(BaseBot):
         message: Union[str, Message, MessageSegment],
         **kwargs,
     ) -> Any:
+
         """
         :说明:
 
@@ -252,7 +262,8 @@ class Bot(BaseBot):
 
           * ``event: Event``: Event 对象
           * ``message: Union[str, Message, MessageSegment]``: 要发送的消息
-          * ``at_sender: bool``: 是否 @ 事件主体
+          * ``reply_sender: bool``: 是否回复事件主体
+          * ``is_temp_msg: bool``: 是否临时消息
           * ``**kwargs``: 覆盖默认参数
 
         :返回:

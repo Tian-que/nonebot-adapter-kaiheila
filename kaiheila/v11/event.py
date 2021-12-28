@@ -208,7 +208,7 @@ class Kmarkdown(BaseModel):
 
 class EventMessage(BaseModel):
     type: Union[int, str]
-    guild_id: str
+    guild_id: Optional[str]
     channel_name: Optional[str]
     mention: Optional[List]
     mention_all: Optional[bool]

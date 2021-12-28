@@ -26,7 +26,7 @@ from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .message import Message, MessageSegment, MessageSerializer
+from .message import Message, MessageSegment
 from .exception import NetworkError, ApiNotAvailable
 from .utils import ResultStore, log, _handle_api_result
 
@@ -82,12 +82,11 @@ class Adapter(BaseAdapter):
                     "Authorization"
                 ] = f"Bot {bot.token}"
 
-            msg_type, content = MessageSerializer(data['content']).serialize()
-            data['content'] = content
+            api = api.strip("/api/v3/").strip("api/v3/").strip("/")
 
             request = Request(
                 "POST",
-                self.api_root + api.replace('_', '/'),
+                self.api_root + api,
                 headers=headers,
                 data=json.dumps(data),
                 timeout=self.config.api_timeout,
@@ -103,7 +102,7 @@ class Adapter(BaseAdapter):
                     return _handle_api_result(result)
                 raise NetworkError(
                     f"HTTP request received unexpected "
-                    f"status code: {response.status_code}"
+                    f"status code: {response.status_code} "
                 )
             except NetworkError:
                 raise
@@ -202,6 +201,21 @@ class Adapter(BaseAdapter):
                 content=msg,
             )
 
+    async def get_bot_info(self, token) -> Dict:
+        headers = {
+            'Authorization': f'Bot {token}',
+            'Content-type': 'application/json'
+        }
+        request = Request(
+            "GET",
+            self.api_root + 'user/me',
+            headers=headers,
+            timeout=self.config.api_timeout,
+        )
+        response = await self.driver.request(request)
+        return json.loads(response.content)
+
+
     async def start_forward(self) -> None:
         for bot in self.kaiheila_config.bots:
             try:
@@ -265,17 +279,18 @@ class Adapter(BaseAdapter):
 
             log("DEBUG", f"WebSocket Connection to {escape_tag(str(url))} established")
             try:
-                ws.receive_func = ws.receive_bytes if self.kaiheila_config.compress else ws.receive
+                # ws.receive_func = ws.receive_bytes if self.kaiheila_config.compress else ws.receive
                 data_decompress_func = zlib.decompress if self.kaiheila_config.compress else lambda x: x
                 while True:
                     try:
-                        try:
-                            data = await ws.receive_func()
-                        except:
-                            data = await ws.receive_bytes()
+                        # try:
+                        #     data = await ws.receive_func()
+                        # except:
+                        #     data = await ws.receive_bytes()
+                        data = await ws.receive()
                         data = data_decompress_func(data)
                         json_data = json.loads(data)
-                        event = self.json_to_event(json_data, bot and client_id)
+                        event = self.json_to_event(json_data, bot and bot.self_id)
                         if not event:
                             continue
                         if not bot:
@@ -284,8 +299,9 @@ class Adapter(BaseAdapter):
                                 or event.sub_type != "connect"
                             ):
                                 continue
-                            self_id = client_id
-                            bot = Bot(self, str(self_id), event.get_session_id(), token)
+                            bot_info = await self.get_bot_info(token)
+                            self_id = bot_info['data']['id']
+                            bot = Bot(self, str(self_id), event.get_session_id(),bot_info['data']['username'], token)
                             self.connections[str(self_id)] = ws
                             self.bot_connect(bot)
 
@@ -360,7 +376,6 @@ class Adapter(BaseAdapter):
                 f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",
             )
             return HeartbeatMetaEvent.parse_obj(data)
-
 
         # 先屏蔽除 Event 的其他包
         # Todo: remove it
