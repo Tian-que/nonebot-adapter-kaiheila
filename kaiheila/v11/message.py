@@ -1,8 +1,10 @@
 import re
+import json
 from io import BytesIO
 from pathlib import Path
 from base64 import b64encode
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Optional, Dict, List, cast
+from pydantic import Field
 
 import itertools
 from dataclasses import dataclass
@@ -12,12 +14,12 @@ from nonebot.adapters import MessageSegment as BaseMessageSegment
 
 from .utils import log, _b2s, escape, unescape
 
-import json
-
 
 class MessageSegment(BaseMessageSegment["Message"]):
     """
-    OneBot v11 协议 MessageSegment 适配。具体方法参考协议消息段类型或源码。
+    开黑啦 协议 MessageSegment 适配。具体方法参考协议消息段类型或源码。
+
+    https://developer.kaiheila.cn/doc/event/message
     """
 
     @classmethod
@@ -25,238 +27,113 @@ class MessageSegment(BaseMessageSegment["Message"]):
     def get_message_class(cls) -> Type["Message"]:
         return Message
 
-    @overrides(BaseMessageSegment)
+    @property
+    def segment_text(self) -> dict:
+        return {
+            "text": "[文字]",
+            "image": "[图片]",
+            "video": "[视频]",
+            "file": "[文件]",
+            "audio": "[音频]",
+            "kmarkdown": "[Kmarkdown消息]",
+            "card": "[卡片消息]",
+            "sys": "[系统消息]",
+        }
+
     def __str__(self) -> str:
-        type_ = self.type
-        data = self.data.copy()
-
-        # process special types
-        if type_ == "text":
-            return escape(data.get("text", ""), escape_comma=False)  # type: ignore
-
-        params = ",".join(
-            [f"{k}={escape(str(v))}" for k, v in data.items() if v is not None]
-        )
-        return f"[CQ:{type_}{',' if params else ''}{params}]"
+        if self.type in ["text", "hongbao", "a"]:
+            return str(self.data["text"])
+        elif self.type == "at":
+            return str(f"@{self.data['user_name']}")
+        else:
+            return self.segment_text.get(self.type, "")
 
     @overrides(BaseMessageSegment)
     def __add__(self, other) -> "Message":
-        return Message(self) + (
-            MessageSegment.text(other) if isinstance(other, str) else other
-        )
+        return Message(self) + (MessageSegment.text(other) if isinstance(
+            other, str) else other)
 
     @overrides(BaseMessageSegment)
     def __radd__(self, other) -> "Message":
-        return (
-            MessageSegment.text(other) if isinstance(other, str) else Message(other)
-        ) + self
+        return (MessageSegment.text(other)
+                if isinstance(other, str) else Message(other)) + self
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
         return self.type == "text"
 
     @staticmethod
-    def anonymous(ignore_failure: Optional[bool] = None) -> "MessageSegment":
-        return MessageSegment("anonymous", {"ignore": _b2s(ignore_failure)})
-
-    @staticmethod
-    def at(user_id: Union[int, str]) -> "MessageSegment":
-        return MessageSegment("at", {"qq": str(user_id)})
-
-    @staticmethod
-    def contact(type_: str, id: int) -> "MessageSegment":
-        return MessageSegment("contact", {"type": type_, "id": str(id)})
-
-    @staticmethod
-    def contact_group(group_id: int) -> "MessageSegment":
-        return MessageSegment("contact", {"type": "group", "id": str(group_id)})
-
-    @staticmethod
-    def contact_user(user_id: int) -> "MessageSegment":
-        return MessageSegment("contact", {"type": "qq", "id": str(user_id)})
-
-    @staticmethod
-    def dice() -> "MessageSegment":
-        return MessageSegment("dice", {})
-
-    @staticmethod
-    def face(id_: int) -> "MessageSegment":
-        return MessageSegment("face", {"id": str(id_)})
-
-    @staticmethod
-    def forward(id_: str) -> "MessageSegment":
-        log("WARNING", "Forward Message only can be received!")
-        return MessageSegment("forward", {"id": id_})
-
-    @staticmethod
-    def image(
-        file: Union[str, bytes, BytesIO, Path],
-        type_: Optional[str] = None,
-        cache: bool = True,
-        proxy: bool = True,
-        timeout: Optional[int] = None,
-    ) -> "MessageSegment":
-        if isinstance(file, BytesIO):
-            file = file.getvalue()
-        if isinstance(file, bytes):
-            file = f"base64://{b64encode(file).decode()}"
-        elif isinstance(file, Path):
-            file = f"file:///{file.resolve()}"
-        return MessageSegment(
-            "image",
-            {
-                "file": file,
-                "type": type_,
-                "cache": _b2s(cache),
-                "proxy": _b2s(proxy),
-                "timeout": timeout,
-            },
-        )
-
-    @staticmethod
-    def json(data: str) -> "MessageSegment":
-        return MessageSegment("json", {"data": data})
-
-    @staticmethod
-    def location(
-        latitude: float,
-        longitude: float,
-        title: Optional[str] = None,
-        content: Optional[str] = None,
-    ) -> "MessageSegment":
-        return MessageSegment(
-            "location",
-            {
-                "lat": str(latitude),
-                "lon": str(longitude),
-                "title": title,
-                "content": content,
-            },
-        )
-
-    @staticmethod
-    def music(type_: str, id_: int) -> "MessageSegment":
-        return MessageSegment("music", {"type": type_, "id": id_})
-
-    @staticmethod
-    def music_custom(
-        url: str,
-        audio: str,
-        title: str,
-        content: Optional[str] = None,
-        img_url: Optional[str] = None,
-    ) -> "MessageSegment":
-        return MessageSegment(
-            "music",
-            {
-                "type": "custom",
-                "url": url,
-                "audio": audio,
-                "title": title,
-                "content": content,
-                "image": img_url,
-            },
-        )
-
-    @staticmethod
-    def node(id_: int) -> "MessageSegment":
-        return MessageSegment("node", {"id": str(id_)})
-
-    @staticmethod
-    def node_custom(
-        user_id: int, nickname: str, content: Union[str, "Message"]
-    ) -> "MessageSegment":
-        return MessageSegment(
-            "node", {"user_id": str(user_id), "nickname": nickname, "content": content}
-        )
-
-    @staticmethod
-    def poke(type_: str, id_: str) -> "MessageSegment":
-        return MessageSegment("poke", {"type": type_, "id": id_})
-
-    @staticmethod
-    def record(
-        file: Union[str, bytes, BytesIO, Path],
-        magic: Optional[bool] = None,
-        cache: Optional[bool] = None,
-        proxy: Optional[bool] = None,
-        timeout: Optional[int] = None,
-    ) -> "MessageSegment":
-        if isinstance(file, BytesIO):
-            file = file.getvalue()
-        if isinstance(file, bytes):
-            file = f"base64://{b64encode(file).decode()}"
-        elif isinstance(file, Path):
-            file = f"file:///{file.resolve()}"
-        return MessageSegment(
-            "record",
-            {
-                "file": file,
-                "magic": _b2s(magic),
-                "cache": _b2s(cache),
-                "proxy": _b2s(proxy),
-                "timeout": timeout,
-            },
-        )
-
-    @staticmethod
-    def reply(id_: int) -> "MessageSegment":
-        return MessageSegment("reply", {"id": str(id_)})
-
-    @staticmethod
-    def rps() -> "MessageSegment":
-        return MessageSegment("rps", {})
-
-    @staticmethod
-    def shake() -> "MessageSegment":
-        return MessageSegment("shake", {})
-
-    @staticmethod
-    def share(
-        url: str = "",
-        title: str = "",
-        content: Optional[str] = None,
-        image: Optional[str] = None,
-    ) -> "MessageSegment":
-        return MessageSegment(
-            "share", {"url": url, "title": title, "content": content, "image": image}
-        )
+    def at(user_id: str) -> "MessageSegment":
+        return MessageSegment("at", {"user_id": user_id})
 
     @staticmethod
     def text(text: str) -> "MessageSegment":
         return MessageSegment("text", {"text": text})
 
     @staticmethod
-    def video(
-        file: Union[str, bytes, BytesIO, Path],
-        cache: Optional[bool] = None,
-        proxy: Optional[bool] = None,
-        timeout: Optional[int] = None,
-    ) -> "MessageSegment":
-        if isinstance(file, BytesIO):
-            file = file.getvalue()
-        if isinstance(file, bytes):
-            file = f"base64://{b64encode(file).decode()}"
-        elif isinstance(file, Path):
-            file = f"file:///{file.resolve()}"
-        return MessageSegment(
-            "video",
-            {
-                "file": file,
-                "cache": _b2s(cache),
-                "proxy": _b2s(proxy),
-                "timeout": timeout,
-            },
-        )
+    def image(url: str) -> "MessageSegment":
+        return MessageSegment("image", {"url": url})
 
     @staticmethod
-    def xml(data: str) -> "MessageSegment":
-        return MessageSegment("xml", {"data": data})
+    def video(url: str, name: str) -> "MessageSegment":
+        return MessageSegment("video", {
+            "url": url,
+            "name": name,
+        })
 
+    @staticmethod
+    def file(url: str, name: str) -> "MessageSegment":
+        return MessageSegment("file", {
+            "url": url,
+            "name": name,
+        })
+
+    @staticmethod
+    def KMarkdown(content: str) -> "MessageSegment":
+        return MessageSegment("KMarkdown", {
+            "content": content
+        })
+
+    @staticmethod
+    def Card(content: str) -> "MessageSegment":
+        return MessageSegment("Card", {
+            "content": content
+        })
+
+    @staticmethod
+    def share_chat(chat_id: str) -> "MessageSegment":
+        return MessageSegment("share_chat", {"chat_id": chat_id})
+
+    @staticmethod
+    def share_user(user_id: str) -> "MessageSegment":
+        return MessageSegment("share_user", {"user_id": user_id})
+
+    @staticmethod
+    def audio(file_key: str, duration: int) -> "MessageSegment":
+        return MessageSegment("audio", {
+            "file_key": file_key,
+            "duration": duration
+        })
+
+    @staticmethod
+    def media(file_key: str, image_key: str, file_name: str,
+              duration: int) -> "MessageSegment":
+        return MessageSegment(
+            "media", {
+                "file_key": file_key,
+                "image_key": image_key,
+                "file_name": file_name,
+                "duration": duration
+            })
+
+
+    @staticmethod
+    def sticker(file_key) -> "MessageSegment":
+        return MessageSegment("sticker", {"file_key": file_key})
 
 class Message(BaseMessage[MessageSegment]):
     """
-    OneBot v11 协议 Message 适配。
+    开黑啦 v3 协议 Message 适配。
     """
 
     @classmethod
@@ -358,17 +235,16 @@ class MessageSerializer:
 @dataclass
 class MessageDeserializer:
     """
-    飞书 协议 Message 反序列化器。
+    开黑啦 协议 Message 反序列化器。
     """
     type: str
-    data: Dict[str, Any]
-    mentions: Optional[List[dict]]
+    datas: Dict
 
     def deserialize(self) -> Message:
-        dict_mention = {}
-        if self.mentions:
-            for mention in self.mentions:
-                dict_mention[mention["key"]] = mention
+        # dict_mention = {}
+        # if self.mentions:
+        #     for mention in self.mentions:
+        #         dict_mention[mention["key"]] = mention
 
         if self.type == "post":
             msg = Message()
@@ -385,13 +261,17 @@ class MessageDeserializer:
                 msg += MessageSegment(tag if tag != "img" else "image", seg)
 
             return msg._merge()
-        elif self.type == "text":
-            for key, mention in dict_mention.items():
-                self.data["text"] = self.data["text"].replace(
-                    key, f"@{mention['name']}")
-            self.data["mentions"] = dict_mention
-
-            return Message(MessageSegment(self.type, self.data))
-
+        elif self.type == 1:
+            return Message(MessageSegment.text(self.datas["content"]))
+        elif self.type == 2:
+            return Message(MessageSegment.image(self.datas["content"]))
+        elif self.type == 3:
+            return Message(MessageSegment.video(self.datas["attachments"]["url"], self.datas["attachments"]["name"]))
+        elif self.type == 4:
+            return Message(MessageSegment.file(self.datas["attachments"]["url"], self.datas["attachments"]["name"]))
+        elif self.type == 9:
+            return Message(MessageSegment.KMarkdown(self.datas["content"]))
+        elif self.type == 10:
+            return Message(MessageSegment.Card(self.datas["content"]))
         else:
             return Message(MessageSegment(self.type, self.data))

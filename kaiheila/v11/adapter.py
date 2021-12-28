@@ -375,9 +375,6 @@ class Adapter(BaseAdapter):
             extra = data.get("extra")
 
             data['self_id'] = self_id
-            message = Message.template("{}").format(data["content"])
-            data['message'] = message
-            data['message_id'] = data.get('msg_id')
             data['group_id'] = data.get('target_id')
             data['time'] = data.get('msg_timestamp')
             data['user_id'] = data.get('author_id') if data.get('author_id') != "1" else "SYSTEM"
@@ -385,6 +382,8 @@ class Adapter(BaseAdapter):
             if data['type'] == EventTypes.sys:
                 data['post_type'] = "notice"
                 data['notice_type'] = extra.get('type')
+                message = Message.template("{}").format(data["content"])
+                data['message'] = message
                 # data['notice_type'] = data.get('channel_type').lower()
                 # data['notice_type'] = 'private' if data['notice_type'] == 'person' else data['notice_type']
             else:
@@ -392,7 +391,10 @@ class Adapter(BaseAdapter):
                 data['sub_type'] = [i.name.lower() for i in EventTypes if i.value == extra.get('type')][0]
                 data['message_type'] = data.get('channel_type').lower()
                 data['message_type'] = 'private' if data['message_type'] == 'person' else data['message_type']
-
+                data['extra']['content'] = data.get('content')
+                data['event'] = data['extra']
+            
+            data['message_id'] = data.get('msg_id')
             post_type = data['post_type']
             detail_type = data.get(f"{post_type}_type")
             detail_type = f".{detail_type}" if detail_type else ""

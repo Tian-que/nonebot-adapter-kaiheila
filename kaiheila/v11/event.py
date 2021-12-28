@@ -1,8 +1,9 @@
 import inspect
+import json
 from typing_extensions import Literal
 from typing import TYPE_CHECKING, List, Type, Optional, Dict, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator, HttpUrl
 from pygtrie import StringTrie
 
 from nonebot.typing import overrides
@@ -10,7 +11,7 @@ from nonebot.utils import escape_tag
 from nonebot.adapters import Event as BaseEvent
 from enum import IntEnum, Enum
 
-from .message import Message
+from .message import Message, MessageDeserializer
 from .exception import NoLogException
 
 if TYPE_CHECKING:
@@ -119,14 +120,15 @@ class Emoji(BaseModel):
     name: str
 
 class Attachment(BaseModel):
-    type_: Optional[int] = Field(None, alias="type")
-    url: str
+    type: str
     name: str
+    url: HttpUrl
     file_type: Optional[str] = Field(None)
     size: Optional[int] = Field(None)
     duration: Optional[float] = Field(None)
     width: Optional[int] = Field(None)
-    height: Optional[int] = Field(None)
+    hight: Optional[int] = Field(None)
+
 
 class Body(BaseModel):
     msg_id: Optional[str]
@@ -197,6 +199,55 @@ class OriginEvent(BaseEvent):
     @overrides(BaseEvent)
     def is_tome(self) -> bool:
         return False
+
+
+class Kmarkdown(BaseModel):
+    raw_content: str
+    mention_part: list
+    mention_role_part: list
+
+class EventMessage(BaseModel):
+    type: Union[int, str]
+    guild_id: str
+    channel_name: Optional[str]
+    mention: Optional[List]
+    mention_all: Optional[bool]
+    mention_roles: Optional[List]
+    mention_here: Optional[bool]
+    nav_channels: Optional[List]
+    author: User
+
+    kmarkdown: Optional[Kmarkdown]
+
+    code: Optional[str] = None
+    attachments: Optional[Attachment] = None
+
+    content: Message
+
+    @root_validator(pre=True)
+    def parse_message(cls, values: dict):
+        values["content"] = MessageDeserializer(
+            values["type"],
+            values,
+        ).deserialize()
+        return values
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class Event(OriginEvent):
     """
@@ -287,7 +338,7 @@ class MessageEvent(Event):
     post_type: Literal["message"] = "message"
     message_type: str  # group private 其实是person
     sub_type: str
-    message: Message
+    event: EventMessage
 
 
 
@@ -330,6 +381,13 @@ class MessageEvent(Event):
     @overrides(Event)
     def is_tome(self) -> bool:
         return self.to_me
+    
+    # 把 message 映射到 event.content 上
+    def __getattr__(self, name):
+        if name == "message":
+            return self.event.content
+        else:
+            super().__getattr__(name)
 
 class PrivateMessageEvent(MessageEvent):
     """私聊消息"""
@@ -357,7 +415,7 @@ class ChannelMessageEvent(MessageEvent):
 
     __event__ = "message.group"
     message_type: Literal["group"]
-    group_id: int
+    group_id: str
     anonymous: Optional[Anonymous] = None
 
     @overrides(Event)
@@ -369,7 +427,7 @@ class ChannelMessageEvent(MessageEvent):
                     lambda x: escape_tag(str(x))
                     if x.is_text()
                     else f"<le>{escape_tag(str(x))}</le>",
-                    self.message,
+                    self.event.content,
                 )
             )
             + '"'
@@ -378,6 +436,7 @@ class ChannelMessageEvent(MessageEvent):
     @overrides(MessageEvent)
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
+
 
 # Notice Events
 class NoticeEvent(Event):
