@@ -18,6 +18,7 @@ driver.register_adapter(khlbot)
 
 from kaiheila.v11.event import Event, MessageEvent
 from kaiheila.v11.bot import Bot, send
+from kaiheila.v11.message import MessageSegment
 
 from nonebot.rule import to_me
 from nonebot.adapters import Message, Event
@@ -29,14 +30,15 @@ from nonebot.plugin import on_command
 test = on_command("test")
 @test.handle()
 async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
-
-    await bot.send(event, message)
+    url = await bot.upload_file("D:\\Desktop\\yy-bg3.jpg")
+    await bot.send(event, message = url)
 
 test2 = on_command("test2")
 @test2.handle()
 async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
 
     await send(bot, event, message = 'test', reply_sender = True, is_temp_msg = True)
+    await 
 
 if __name__ == "__main__":
     nonebot.run()
