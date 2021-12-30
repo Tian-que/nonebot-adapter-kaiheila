@@ -37,8 +37,8 @@ test2 = on_command("test2")
 @test2.handle()
 async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
 
-    await send(bot, event, message = 'test', reply_sender = True, is_temp_msg = True)
-    await 
+    await send(bot, event, message = 'test🤣', reply_sender = True, is_temp_msg = True)
+    # await 
 
 if __name__ == "__main__":
     nonebot.run()
