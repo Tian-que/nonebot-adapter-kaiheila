@@ -6,6 +6,7 @@ from base64 import b64encode
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Optional, Dict, List, cast
 from pydantic import Field
 
+
 import itertools
 from dataclasses import dataclass
 from nonebot.typing import overrides
@@ -80,21 +81,19 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return MessageSegment("text", {"content": text})
 
     @staticmethod
-    def image(url: str) -> "MessageSegment":
-        return MessageSegment("image", {"url": url})
+    def image(file_key: str) -> "MessageSegment":
+        return MessageSegment("image", {"file_key": file_key})
 
     @staticmethod
-    def video(url: str, name: str) -> "MessageSegment":
+    def video(file_key: str) -> "MessageSegment":
         return MessageSegment("video", {
-            "url": url,
-            "name": name,
+            "file_key": file_key,
         })
 
     @staticmethod
-    def file(url: str, name: str) -> "MessageSegment":
+    def file(file_key: str) -> "MessageSegment":
         return MessageSegment("file", {
-            "url": url,
-            "name": name,
+            "file_key": file_key
         })
 
     @staticmethod
@@ -110,35 +109,11 @@ class MessageSegment(BaseMessageSegment["Message"]):
         })
 
     @staticmethod
-    def share_chat(chat_id: str) -> "MessageSegment":
-        return MessageSegment("share_chat", {"chat_id": chat_id})
-
-    @staticmethod
-    def share_user(user_id: str) -> "MessageSegment":
-        return MessageSegment("share_user", {"user_id": user_id})
-
-    @staticmethod
     def audio(file_key: str, duration: int) -> "MessageSegment":
         return MessageSegment("audio", {
             "file_key": file_key,
             "duration": duration
         })
-
-    @staticmethod
-    def media(file_key: str, image_key: str, file_name: str,
-              duration: int) -> "MessageSegment":
-        return MessageSegment(
-            "media", {
-                "file_key": file_key,
-                "image_key": image_key,
-                "file_name": file_name,
-                "duration": duration
-            })
-
-
-    @staticmethod
-    def sticker(file_key) -> "MessageSegment":
-        return MessageSegment("sticker", {"file_key": file_key})
 
 class Message(BaseMessage[MessageSegment]):
     """
@@ -186,6 +161,7 @@ class Message(BaseMessage[MessageSegment]):
                     r"),?\]",
                     msg,
                 ):
+                # re.findall(r"\@(?P<username>.+)\#(?P<user_id>[0-9]+)", a)
                     yield "text", msg[text_begin : cqcode.pos + cqcode.start()]
                     text_begin = cqcode.pos + cqcode.end()
                     yield cqcode.group("type"), cqcode.group("params").lstrip(",")
@@ -208,7 +184,7 @@ class Message(BaseMessage[MessageSegment]):
 
     @overrides(BaseMessage)
     def extract_plain_text(self) -> str:
-        return "".join(seg.data["text"] for seg in self if seg.is_text())
+        return "".join(seg.data["content"] for seg in self if seg.is_text())
 
 
 @dataclass
@@ -218,8 +194,13 @@ class MessageSerializer:
     """
     message: Message
 
-    def serialize(self) -> Tuple[str, str]:
-        return msg_type_map[self.message[0].type], self.message[0].data['content']
+    # bot 发送消息只支持这三种类型
+    # todo 对其他类型抛出异常
+    async def serialize(self) -> Tuple[str, str]:
+        if self.message[0].type in ("text", "KMarkdown", "Card"):
+            return msg_type_map[self.message[0].type], self.message[0].data['content']
+        elif self.message[0].type in  ("image", "audio", "video", "file"):
+            return self.message[0].data['file_key']
 
 
 @dataclass
@@ -241,9 +222,9 @@ class MessageDeserializer:
         elif self.type == 2:
             return Message(MessageSegment.image(self.datas["content"]))
         elif self.type == 3:
-            return Message(MessageSegment.video(self.datas["attachments"]["url"], self.datas["attachments"]["name"]))
+            return Message(MessageSegment.video(self.datas["attachments"]["url"]))
         elif self.type == 4:
-            return Message(MessageSegment.file(self.datas["attachments"]["url"], self.datas["attachments"]["name"]))
+            return Message(MessageSegment.file(self.datas["attachments"]["url"]))
         elif self.type == 9:
             return Message(MessageSegment.KMarkdown(self.datas["content"]))
         elif self.type == 10:

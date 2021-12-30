@@ -17,6 +17,9 @@ from .exception import NoLogException
 if TYPE_CHECKING:
     from .bot import Bot
 
+
+# todo 重构，去掉冗余内容
+
 class EventTypes(IntEnum):
     """
     事件主要格式
@@ -118,6 +121,13 @@ class Guild(BaseModel):
 class Emoji(BaseModel):
     id_: str = Field(alias="id")
     name: str
+
+    # 转义 unicdoe 为 emoji表情
+    @root_validator(pre=True)
+    def parse_emoji(cls, values: dict):
+        values['id'] = chr(int(values['id'][2:-2]))
+        values['name'] = chr(int(values['name'][2:-2]))
+        return values
 
 class Attachment(BaseModel):
     type: str
@@ -231,21 +241,6 @@ class EventMessage(BaseModel):
             values,
         ).deserialize()
         return values
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

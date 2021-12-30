@@ -75,26 +75,40 @@ class Adapter(BaseAdapter):
         if isinstance(self.driver, ForwardDriver):
             if not self.api_root:
                 raise ApiNotAvailable
+            # if data.get("headers"):
+            #     headers = data.pop("headers")
+            # else:
+            #     headers = {"Content-Type": "application/json"}
 
-            headers = {"Content-Type": "application/json"}
+            headers = data.get("headers", {})
+            if data.get("file"):
+                pass
+            if data.get("content"):
+                data=json.dumps(data)
+                headers["Content-Type"] = "application/json"
             if bot.token is not None:
                 headers[
                     "Authorization"
                 ] = f"Bot {bot.token}"
 
-            api = api.strip("/api/v3/").strip("api/v3/").strip("/")
+            if api.startswith("/api/v3/"):
+                api = api[len("/api/v3/"):]
+            elif api.startswith("api/v3"):
+                api = api[len("api/v3"):]
+            api = api.strip("/")
 
+            # todo
+            # 判断 POST 或 GET
             request = Request(
                 "POST",
                 self.api_root + api,
                 headers=headers,
-                data=json.dumps(data),
+                data=data,
                 timeout=self.config.api_timeout,
             )
 
             try:
                 response = await self.driver.request(request)
-
                 if 200 <= response.status_code < 300:
                     if not response.content:
                         raise ValueError("Empty response")
@@ -106,6 +120,7 @@ class Adapter(BaseAdapter):
                 )
             except NetworkError:
                 raise
+            # todo 显示报错内容
             except Exception as e:
                 raise NetworkError("HTTP request failed") from e
         else:
@@ -279,14 +294,9 @@ class Adapter(BaseAdapter):
 
             log("DEBUG", f"WebSocket Connection to {escape_tag(str(url))} established")
             try:
-                # ws.receive_func = ws.receive_bytes if self.kaiheila_config.compress else ws.receive
                 data_decompress_func = zlib.decompress if self.kaiheila_config.compress else lambda x: x
                 while True:
                     try:
-                        # try:
-                        #     data = await ws.receive_func()
-                        # except:
-                        #     data = await ws.receive_bytes()
                         data = await ws.receive()
                         data = data_decompress_func(data)
                         json_data = json.loads(data)

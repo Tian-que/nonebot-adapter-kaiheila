@@ -2,6 +2,7 @@ from nonebot.permission import Permission
 
 from .event import ChannelMessageEvent, PrivateMessageEvent
 
+# todo khl化
 
 async def _private(event: PrivateMessageEvent) -> bool:
     return True
