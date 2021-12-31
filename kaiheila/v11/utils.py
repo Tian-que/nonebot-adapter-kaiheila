@@ -1,10 +1,9 @@
-import sys
 import asyncio
 from typing import Any, Dict, Tuple, Optional
 
 from nonebot.utils import logger_wrapper
 
-from .exception import ActionFailed, NetworkError
+from .exception import ActionFailed
 
 log = logger_wrapper("Kaiheila")
 

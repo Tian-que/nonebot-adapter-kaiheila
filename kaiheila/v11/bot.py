@@ -10,7 +10,7 @@ from yarl import URL
 
 from .utils import log
 from .message import Message, MessageSegment, MessageSerializer
-from .event import Event, Reply, MessageEvent
+from .event import Event, MessageEvent
 
 if TYPE_CHECKING:
     from .event import Event

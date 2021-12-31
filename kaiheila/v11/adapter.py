@@ -14,7 +14,6 @@ from nonebot.drivers import (
     Response,
     WebSocket,
     ForwardDriver,
-    WebSocketServerSetup,
 )
 
 import aiohttp

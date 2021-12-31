@@ -1,15 +1,14 @@
 import inspect
-import json
 from typing_extensions import Literal
 from typing import TYPE_CHECKING, List, Type, Optional, Dict, Union
 
-from pydantic import BaseModel, Field, validator, root_validator, HttpUrl
+from pydantic import BaseModel, Field, root_validator, HttpUrl
 from pygtrie import StringTrie
 
 from nonebot.typing import overrides
 from nonebot.utils import escape_tag
 from nonebot.adapters import Event as BaseEvent
-from enum import IntEnum, Enum
+from enum import IntEnum
 
 from .message import Message, MessageDeserializer
 from .exception import NoLogException

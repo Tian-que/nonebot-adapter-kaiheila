@@ -1,13 +1,6 @@
-import re
-import json
-from io import BytesIO
-from pathlib import Path
-from base64 import b64encode
-from typing import Any, Type, Tuple, Union, Mapping, Iterable, Optional, Dict, List, cast
-from pydantic import Field
+from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast
 
 
-import itertools
 from dataclasses import dataclass
 from nonebot.typing import overrides
 from nonebot.adapters import Message as BaseMessage
