@@ -29,6 +29,7 @@ from .event import OriginEvent
 from .message import Message, MessageSegment
 from .exception import NetworkError, ApiNotAvailable, ReconnectError, TokenError
 from .utils import ResultStore, log, _handle_api_result
+from .api import get_api_method
 
 RECONNECT_INTERVAL = 3.0
 
@@ -75,10 +76,15 @@ class Adapter(BaseAdapter):
         if isinstance(self.driver, ForwardDriver):
             if not self.api_root:
                 raise ApiNotAvailable
-            # if data.get("headers"):
-            #     headers = data.pop("headers")
-            # else:
-            #     headers = {"Content-Type": "application/json"}
+
+            if api.startswith("/api/v3/"):
+                api = api[len("/api/v3/"):]
+            elif api.startswith("api/v3"):
+                api = api[len("api/v3"):]
+            api = api.strip("/")
+
+            # 判断 POST 或 GET
+            method = get_api_method(api) if not data.get("method") else data.get("method")
 
             headers = data.get("headers", {})
             if data.get("file"):
@@ -91,16 +97,8 @@ class Adapter(BaseAdapter):
                     "Authorization"
                 ] = f"Bot {bot.token}"
 
-            if api.startswith("/api/v3/"):
-                api = api[len("/api/v3/"):]
-            elif api.startswith("api/v3"):
-                api = api[len("api/v3"):]
-            api = api.strip("/")
-
-            # todo
-            # 判断 POST 或 GET
             request = Request(
-                "POST",
+                method,
                 self.api_root + api,
                 headers=headers,
                 data=data,
@@ -364,7 +362,6 @@ class Adapter(BaseAdapter):
                     request = Request("GET", url, headers=headers)
                     # 清空本地的 sn 计数
                     ResultStore.set_sn(bot.self_id, 0)
-                    # todo 清空消息队列
                     self.connections.pop(bot.self_id, None)
                     self.bot_disconnect(bot)
                     bot = None
