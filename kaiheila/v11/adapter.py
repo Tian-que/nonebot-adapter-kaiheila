@@ -27,7 +27,7 @@ from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
 from .message import Message, MessageSegment
-from .exception import NetworkError, ApiNotAvailable
+from .exception import NetworkError, ApiNotAvailable, ReconnectError
 from .utils import ResultStore, log, _handle_api_result
 
 RECONNECT_INTERVAL = 3.0
@@ -114,13 +114,21 @@ class Adapter(BaseAdapter):
                         raise ValueError("Empty response")
                     result = json.loads(response.content)
                     return _handle_api_result(result)
-                raise NetworkError(
-                    f"HTTP request received unexpected "
-                    f"status code: {response.status_code} "
-                )
+                try:
+                    # 尝试输出更为详细的信息
+                    result = json.loads(response.content)
+                    raise NetworkError(
+                        f"HTTP request received unexpected "
+                        f"status code: {response.status_code} "
+                        "({})".format(result.get("data"))
+                    )
+                except json.decoder.JSONDecodeError:
+                    raise NetworkError(
+                        f"HTTP request received unexpected "
+                        f"status code: {response.status_code} "
+                    )
             except NetworkError:
                 raise
-            # todo 显示报错内容
             except Exception as e:
                 raise NetworkError("HTTP request failed") from e
         else:
@@ -230,28 +238,29 @@ class Adapter(BaseAdapter):
         response = await self.driver.request(request)
         return json.loads(response.content)
 
+    async def _get_gateway(self, token: str) -> str:
+        headers = {
+                    'Authorization': f'Bot {token}',
+                    'Content-type': 'application/json'
+                }
+
+        params = {'compress': 1 if self.kaiheila_config.compress else 0}
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.api_root}gateway/index",
+                                    headers=headers,
+                                    params=params) as resp:
+                result = await resp.json()
+
+        return _handle_api_result(result)["url"]
+
 
     async def start_forward(self) -> None:
         for bot in self.kaiheila_config.bots:
             try:
-                # json_serialize=json.dumps
-                headers = {
-                    'Authorization': f'Bot {bot["token"]}',
-                    'Content-type': 'application/json'
-                }
-                params = {'compress': 1 if self.kaiheila_config.compress else 0}
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{self.api_root}gateway/index",
-                                            headers=headers,
-                                            params=params) as resp:
-                            
-                        result = await resp.json()
-                    url = _handle_api_result(result)["url"]
-
-                    bot["gateway"] = _handle_api_result(result)["url"]
-
-                    ws_url = URL(url)
-                    self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot)))
+                url = await self._get_gateway(bot["token"])
+                ws_url = URL(url)
+                self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot)))
             except Exception as e:
                 log(
                     "ERROR",
@@ -270,7 +279,6 @@ class Adapter(BaseAdapter):
     async def _forward_ws(self, url: URL, bot_config: dict) -> None:
         headers = {}
         token = bot_config['token']
-        client_id = bot_config['client_id']
         if token:
             headers[
                 "Authorization"
@@ -320,6 +328,14 @@ class Adapter(BaseAdapter):
                                 f"<y>Bot {escape_tag(str(self_id))}</y> connected",
                             )
                         asyncio.create_task(bot.handle_event(event))
+                    except ReconnectError as e:
+                        log(
+                            "ERROR",
+                            "<r><bg #f8bbd0>The current connection has expired"
+                            f"for bot {escape_tag(bot.self_id)}. Trying to reconnect...</bg #f8bbd0></r>",
+                            e,
+                        )
+                        break
                     except Exception as e:
                         log(
                             "ERROR",
@@ -334,6 +350,12 @@ class Adapter(BaseAdapter):
                 except Exception:
                     pass
                 if bot:
+                    # 重新获取 gateway
+                    url = await self._get_gateway(token=token)
+                    request = Request("GET", url, headers=headers)
+                    # 清空本地的 sn 计数
+                    ResultStore.set_sn(bot.self_id, 0)
+                    # todo 清空消息队列
                     self.connections.pop(bot.self_id, None)
                     self.bot_disconnect(bot)
                     bot = None
@@ -346,12 +368,25 @@ class Adapter(BaseAdapter):
         :return:
         """
         while self.connections.get(bot.self_id):
+            if self.connections.get(bot.self_id).closed:
+                break
             await self.connections.get(bot.self_id).send(json.dumps({
                 "s": 2,
                 "sn": ResultStore.get_sn(bot.self_id) # 客户端目前收到的最新的消息 sn
             }))
             # await ResultStore.fetch(client_id, seq, 6)
             await asyncio.sleep(26)
+
+    async def handle_resume_signal(self, self_id: str) -> None:
+        """
+        处理RESUME信号
+        :return:if
+        """
+        if self.connections.get(self_id):
+            await self.connections.get(self_id).send(json.dumps({
+                "s": 4,
+                "sn": ResultStore.get_sn(self_id) # 客户端目前收到的最新的消息 sn
+            }))
 
 
     @classmethod
@@ -363,21 +398,19 @@ class Adapter(BaseAdapter):
 
         signal = json_data['s']
 
-        # HELLO 成功连接WS的回执
-        if signal == SignalTypes.HELLO and json_data['d']['code'] == 0:
-            data = json_data['d']
-            data["post_type"] = "meta_event"
-            data["sub_type"] = 'connect'
-            data["meta_event_type"] = "lifecycle"
-            return LifecycleMetaEvent.parse_obj(data)
-
-        # bot自身发出请求的响应
-        # if "type" not in json_data["d"]:
-        #     if self_id is not None:
-        #         ResultStore.add_result(self_id, json_data)
-        #     return
-
-        if signal == SignalTypes.PONG:
+        if signal == SignalTypes.HELLO:
+            if json_data['d']['code'] == 0:
+                data = json_data['d']
+                data["post_type"] = "meta_event"
+                data["sub_type"] = 'connect'
+                data["meta_event_type"] = "lifecycle"
+                return LifecycleMetaEvent.parse_obj(data)
+            elif json_data['d']['code'] == 40103:
+                raise ReconnectError
+            else:
+                # todo token无效
+                pass
+        elif signal == SignalTypes.PONG:
             data = dict()
             data["post_type"] = "meta_event"
             data["meta_event_type"] = "heartbeat"
@@ -386,14 +419,15 @@ class Adapter(BaseAdapter):
                 f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",
             )
             return HeartbeatMetaEvent.parse_obj(data)
-
-        # 先屏蔽除 Event 的其他包
-        # Todo: remove it
-        if signal != 0:
-            return
-
-        if signal == SignalTypes.EVENT:
+        elif signal == SignalTypes.EVENT:
             ResultStore.set_sn(self_id, json_data["sn"])
+        elif signal == SignalTypes.RESUME:
+            # todo: await 的问题
+            cls.handle_resume_signal(self_id)
+        elif signal == SignalTypes.RECONNECT:
+            raise ReconnectError
+        elif signal == SignalTypes.RESUME_ACK:
+            return
 
         # 屏蔽 Bot 自身的消息
         if json_data["d"]["author_id"] == self_id:

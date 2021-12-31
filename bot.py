@@ -36,7 +36,7 @@ async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
 test2 = on_command("test2")
 @test2.handle()
 async def test_escape(bot: Bot, event: Event, message: Message = CommandArg()):
-
+    await bot.call_api("/api/v3/channel/create", guild_id = "1234567789")
     await send(bot, event, message = 'test🤣', reply_sender = True, is_temp_msg = True)
     # await 
 

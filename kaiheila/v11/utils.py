@@ -39,6 +39,30 @@ def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
         return result.get("data")
 
 # todo 搞懂这玩意
+# 这里应该维护一个队列，每次放入消息后取出最小sn值的event
+
+    # //收到消息
+    # public function processEvent($frame)
+    # {
+    #     //仅在连接状态接收事件消息
+    #     if ($this->status != self::STATUS_CONNECTED) {
+    #         return;
+    #     }
+    #     $sn = $frame->sn;
+    #     //先将消息放入接收队列
+    #     $this->recvQueue[$sn] = $frame;
+    #     //再按顺序从接收队列中读取
+    #     while (true) {
+    #         if (isset($this->recvQueue[$this->maxSn + 1])) {
+    #             $this->maxSn++;
+    #             $outFrame = $this->recvQueue[$this->maxSn];
+    #             unset($this->recvQueue[$this->maxSn]);
+    #             $this->processDataFrame($outFrame);
+    #         } else {
+    #             break;
+    #         }
+    #     }
+    # }
 class ResultStore:
     _seq = 1
     _futures: Dict[Tuple[str, int], asyncio.Future] = {}

@@ -7,16 +7,16 @@ from nonebot.exception import NoLogException as BaseNoLogException
 from nonebot.exception import ApiNotAvailable as BaseApiNotAvailable
 
 
-class OneBotAdapterException(AdapterException):
+class KaiheilaAdapterException(AdapterException):
     def __init__(self):
-        super().__init__("onebot")
+        super().__init__("Kaiheila")
 
 
-class NoLogException(BaseNoLogException, OneBotAdapterException):
+class NoLogException(BaseNoLogException, KaiheilaAdapterException):
     pass
 
 
-class ActionFailed(BaseActionFailed, OneBotAdapterException):
+class ActionFailed(BaseActionFailed, KaiheilaAdapterException):
     """
     :说明:
 
@@ -42,7 +42,7 @@ class ActionFailed(BaseActionFailed, OneBotAdapterException):
         return self.__repr__()
 
 
-class NetworkError(BaseNetworkError, OneBotAdapterException):
+class NetworkError(BaseNetworkError, KaiheilaAdapterException):
     """
     :说明:
 
@@ -64,5 +64,21 @@ class NetworkError(BaseNetworkError, OneBotAdapterException):
         return self.__repr__()
 
 
-class ApiNotAvailable(BaseApiNotAvailable, OneBotAdapterException):
+class ApiNotAvailable(BaseApiNotAvailable, KaiheilaAdapterException):
+    pass
+
+class UnsupportedMessageType(KaiheilaAdapterException):
+    """
+    :说明:
+
+      在发送不支持的消息类型时抛出，开黑啦 Bot 仅支持发送以下三种消息类型: "text"、"KMarkdown" 和 "Card", 尝试发送其他类型时抛出此异常。
+    """
+    pass
+
+class ReconnectError(KaiheilaAdapterException):
+    """
+    :说明:
+
+      服务端通知客户端, 代表该连接已失效, 请重新连接。客户端收到后应该主动断开当前连接。
+    """
     pass

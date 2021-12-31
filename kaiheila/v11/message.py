@@ -13,7 +13,8 @@ from nonebot.typing import overrides
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 
-from .utils import log, _b2s, escape, unescape
+from .utils import log, _b2s
+from .exception import UnsupportedMessageType
 
 msg_type_map = {
     "text": 1,
@@ -195,12 +196,13 @@ class MessageSerializer:
     message: Message
 
     # bot 发送消息只支持这三种类型
-    # todo 对其他类型抛出异常
     async def serialize(self) -> Tuple[str, str]:
         if self.message[0].type in ("text", "KMarkdown", "Card"):
             return msg_type_map[self.message[0].type], self.message[0].data['content']
         elif self.message[0].type in  ("image", "audio", "video", "file"):
             return self.message[0].data['file_key']
+        else:
+            raise UnsupportedMessageType
 
 
 @dataclass
