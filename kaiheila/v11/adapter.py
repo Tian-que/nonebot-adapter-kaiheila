@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Type, Union, Callable, Optional, cast
 
 from pygtrie import StringTrie
 from nonebot.typing import overrides
-from nonebot.utils import DataclassEncoder, escape_tag
+from nonebot.utils import escape_tag
 from nonebot.drivers import (
     URL,
     Driver,
@@ -27,7 +27,7 @@ from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
 from .message import Message, MessageSegment
-from .exception import NetworkError, ApiNotAvailable, ReconnectError
+from .exception import NetworkError, ApiNotAvailable, ReconnectError, TokenError
 from .utils import ResultStore, log, _handle_api_result
 
 RECONNECT_INTERVAL = 3.0
@@ -261,11 +261,18 @@ class Adapter(BaseAdapter):
                 url = await self._get_gateway(bot["token"])
                 ws_url = URL(url)
                 self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot)))
+            except TokenError as e:
+                log(
+                    "ERROR",
+                    f"<r><bg #f8bbd0>Error token {bot['token']} ,"
+                    "please get the new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
+                    e,
+                )
             except Exception as e:
                 log(
                     "ERROR",
-                    f"<r><bg #f8bbd0>Bad url {escape_tag(url)} "
-                    "in onebot forward websocket config</bg #f8bbd0></r>",
+                    f"<r><bg #f8bbd0>Error {bot['token']} "
+                    "to get the Gateway</bg #f8bbd0></r>",
                     e,
                 )
 
@@ -336,6 +343,8 @@ class Adapter(BaseAdapter):
                             e,
                         )
                         break
+                    except TokenError:
+                        raise
                     except Exception as e:
                         log(
                             "ERROR",
@@ -377,18 +386,6 @@ class Adapter(BaseAdapter):
             # await ResultStore.fetch(client_id, seq, 6)
             await asyncio.sleep(26)
 
-    async def handle_resume_signal(self, self_id: str) -> None:
-        """
-        处理RESUME信号
-        :return:if
-        """
-        if self.connections.get(self_id):
-            await self.connections.get(self_id).send(json.dumps({
-                "s": 4,
-                "sn": ResultStore.get_sn(self_id) # 客户端目前收到的最新的消息 sn
-            }))
-
-
     @classmethod
     def json_to_event(
         cls, json_data: Any, self_id: Optional[str] = None,
@@ -407,9 +404,10 @@ class Adapter(BaseAdapter):
                 return LifecycleMetaEvent.parse_obj(data)
             elif json_data['d']['code'] == 40103:
                 raise ReconnectError
-            else:
-                # todo token无效
-                pass
+            elif json_data['d']['code'] == 40101: 
+                raise TokenError("无效的 token")
+            elif json_data['d']['code'] == 40102:
+                raise TokenError("token 验证失败")
         elif signal == SignalTypes.PONG:
             data = dict()
             data["post_type"] = "meta_event"
@@ -421,12 +419,10 @@ class Adapter(BaseAdapter):
             return HeartbeatMetaEvent.parse_obj(data)
         elif signal == SignalTypes.EVENT:
             ResultStore.set_sn(self_id, json_data["sn"])
-        elif signal == SignalTypes.RESUME:
-            # todo: await 的问题
-            cls.handle_resume_signal(self_id)
         elif signal == SignalTypes.RECONNECT:
             raise ReconnectError
         elif signal == SignalTypes.RESUME_ACK:
+            # 不存在的signal，resume是不可能resume的，这辈子都不会resume的，出了问题直接重连
             return
 
         # 屏蔽 Bot 自身的消息
