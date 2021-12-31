@@ -137,19 +137,17 @@ class Bot(BaseBot):
         ["Bot", Event, Union[str, Message, MessageSegment]], Any
     ] = send
 
-    def __init__(self, adapter: "Adapter", self_id: str, session_id: str, name: str, token: str):
+    def __init__(self, adapter: "Adapter", self_id: str, name: str, token: str):
         """
         :参数:
 
           * ``adapter: Adapter``: 适配器
           * ``self_id: str``: 机器人 ID
-          * ``session_id``: 会话 ID
           * ``name: str``: 机器人用户名
           * ``token``: 机器人 token
 
         """
         super().__init__(adapter, self_id)
-        self.session_id: str = session_id
         self_name: str = name
         self.token: str = token
 
@@ -201,7 +199,6 @@ class Bot(BaseBot):
 
           * ``event: Event``: Event 对象
           * ``message: Union[str, Message, MessageSegment]``: 要发送的消息
-          * ``reply_sender: bool``: 是否回复事件主体
           * ``is_temp_msg: bool``: 是否临时消息
           * ``**kwargs``: 覆盖默认参数
 

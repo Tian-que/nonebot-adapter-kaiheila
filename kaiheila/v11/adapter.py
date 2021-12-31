@@ -202,25 +202,6 @@ class Adapter(BaseAdapter):
                 log("WARNING", "Signature Header is invalid")
                 return Response(403, content="Signature is invalid")
 
-    def _check_access_token(self, request: Request) -> Optional[Response]:
-        token = get_auth_bearer(request.headers.get("authorization"))
-
-        access_token = self.kaiheila_config.onebot_access_token
-        if access_token and access_token != token:
-            msg = (
-                "Authorization Header is invalid"
-                if token
-                else "Missing Authorization Header"
-            )
-            log(
-                "WARNING",
-                msg,
-            )
-            return Response(
-                403,
-                content=msg,
-            )
-
     async def get_bot_info(self, token) -> Dict:
         headers = {
             'Authorization': f'Bot {token}',
@@ -253,22 +234,22 @@ class Adapter(BaseAdapter):
 
 
     async def start_forward(self) -> None:
-        for bot in self.kaiheila_config.bots:
+        for bot_token in self.kaiheila_config.bots:
             try:
-                url = await self._get_gateway(bot["token"])
+                url = await self._get_gateway(bot_token)
                 ws_url = URL(url)
-                self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot)))
+                self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot_token)))
             except TokenError as e:
                 log(
                     "ERROR",
-                    f"<r><bg #f8bbd0>Error token {bot['token']} ,"
+                    f"<r><bg #f8bbd0>Error token {bot_token} ,"
                     "please get the new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
                     e,
                 )
             except Exception as e:
                 log(
                     "ERROR",
-                    f"<r><bg #f8bbd0>Error {bot['token']} "
+                    f"<r><bg #f8bbd0>Error {bot_token} "
                     "to get the Gateway</bg #f8bbd0></r>",
                     e,
                 )
@@ -280,58 +261,49 @@ class Adapter(BaseAdapter):
 
         await asyncio.gather(*self.tasks, return_exceptions=True)
 
-    async def _forward_ws(self, url: URL, bot_config: dict) -> None:
+    async def _forward_ws(self, url: URL, bot_token: str) -> None:
         headers = {}
-        token = bot_config['token']
-        if token:
+        if bot_token:
             headers[
                 "Authorization"
-            ] = f"Bot {token}"
+            ] = f"Bot {bot_token}"
         request = Request("GET", url, headers=headers)
 
         bot: Optional[Bot] = None
 
         while True:
             try:
-                ws = await self.websocket(request)
-            except Exception as e:
-                log(
-                    "ERROR",
-                    "<r><bg #f8bbd0>Error while setup websocket to "
-                    f"{escape_tag(str(url))}. Trying to reconnect...</bg #f8bbd0></r>",
-                    e,
-                )
-                await asyncio.sleep(RECONNECT_INTERVAL)
-                continue
-
-            log("DEBUG", f"WebSocket Connection to {escape_tag(str(url))} established")
-            try:
-                data_decompress_func = zlib.decompress if self.kaiheila_config.compress else lambda x: x
-                while True:
+                async with self.websocket(request) as ws:
+                    log(
+                        "DEBUG",
+                        f"WebSocket Connection to {escape_tag(str(url))} established",
+                    )
                     try:
-                        data = await ws.receive()
-                        data = data_decompress_func(data)
-                        json_data = json.loads(data)
-                        event = self.json_to_event(json_data, bot and bot.self_id)
-                        if not event:
-                            continue
-                        if not bot:
-                            if (
-                                not isinstance(event, LifecycleMetaEvent)
-                                or event.sub_type != "connect"
-                            ):
+                        data_decompress_func = zlib.decompress if self.kaiheila_config.compress else lambda x: x
+                        while True:
+                            data = await ws.receive()
+                            data = data_decompress_func(data)
+                            json_data = json.loads(data)
+                            event = self.json_to_event(json_data, bot and bot.self_id)
+                            if not event:
                                 continue
-                            bot_info = await self.get_bot_info(token)
-                            self_id = bot_info['data']['id']
-                            bot = Bot(self, str(self_id), event.get_session_id(),bot_info['data']['username'], token)
-                            self.connections[str(self_id)] = ws
-                            self.bot_connect(bot)
+                            if not bot:
+                                if (
+                                    not isinstance(event, LifecycleMetaEvent)
+                                    or event.sub_type != "connect"
+                                ):
+                                    continue
+                                bot_info = await self.get_bot_info(bot_token)
+                                self_id = bot_info['data']['id']
+                                bot = Bot(self, str(self_id), bot_info['data']['username'], bot_token)
+                                self.connections[str(self_id)] = ws
+                                self.bot_connect(bot)
 
-                            log(
-                                "INFO",
-                                f"<y>Bot {escape_tag(str(self_id))}</y> connected",
-                            )
-                        asyncio.create_task(bot.handle_event(event))
+                                log(
+                                    "INFO",
+                                    f"<y>Bot {escape_tag(str(self_id))}</y> connected",
+                                )
+                            asyncio.create_task(bot.handle_event(event))
                     except ReconnectError as e:
                         log(
                             "ERROR",
@@ -350,20 +322,27 @@ class Adapter(BaseAdapter):
                             e,
                         )
                         break
-            finally:
-                try:
-                    await ws.close()
-                except Exception:
-                    pass
-                if bot:
-                    # 重新获取 gateway
-                    url = await self._get_gateway(token=token)
-                    request = Request("GET", url, headers=headers)
-                    # 清空本地的 sn 计数
-                    ResultStore.set_sn(bot.self_id, 0)
-                    self.connections.pop(bot.self_id, None)
-                    self.bot_disconnect(bot)
-                    bot = None
+                    finally:
+                        try:
+                            await ws.close()
+                        except Exception:
+                            pass
+                        if bot:
+                            # 重新获取 gateway
+                            url = await self._get_gateway(token=bot_token)
+                            request = Request("GET", url, headers=headers)
+                            # 清空本地的 sn 计数
+                            ResultStore.set_sn(bot.self_id, 0)
+                            self.connections.pop(bot.self_id, None)
+                            self.bot_disconnect(bot)
+                            bot = None
+            except Exception as e:
+                log(
+                    "ERROR",
+                    "<r><bg #f8bbd0>Error while setup websocket to "
+                    f"{escape_tag(str(url))}. Trying to reconnect...</bg #f8bbd0></r>",
+                    e,
+                )
 
             await asyncio.sleep(RECONNECT_INTERVAL)
 
@@ -379,7 +358,6 @@ class Adapter(BaseAdapter):
                 "s": 2,
                 "sn": ResultStore.get_sn(bot.self_id) # 客户端目前收到的最新的消息 sn
             }))
-            # await ResultStore.fetch(client_id, seq, 6)
             await asyncio.sleep(26)
 
     @classmethod

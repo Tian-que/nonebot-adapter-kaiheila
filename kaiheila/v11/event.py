@@ -135,7 +135,6 @@ class Attachment(BaseModel):
     width: Optional[int] = Field(None)
     hight: Optional[int] = Field(None)
 
-
 class Body(BaseModel):
     msg_id: Optional[str]
     user_id: Optional[str]
@@ -237,8 +236,6 @@ class EventMessage(BaseModel):
         ).deserialize()
         return values
 
-
-
 class Event(OriginEvent):
     """
     事件主要格式，来自 d 字段
@@ -290,7 +287,7 @@ class Event(OriginEvent):
     def is_tome(self) -> bool:
         return False
 
-# Message Events    OK
+# Message Events
 class MessageEvent(Event):
     """消息事件"""
 
@@ -322,8 +319,6 @@ class MessageEvent(Event):
     @overrides(Event)
     def get_plaintext(self) -> str:
         return self.message.extract_plain_text()
-
-# todo 去除 user_id
 
     @overrides(Event)
     def is_tome(self) -> bool:
@@ -392,7 +387,6 @@ class ChannelMessageEvent(MessageEvent):
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-
 # Notice Events
 class NoticeEvent(Event):
     """通知事件"""
@@ -417,8 +411,6 @@ class ChannelNoticeEvent(NoticeEvent):
     @overrides(NoticeEvent)
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
-
-
 
 class ChannelAddReactionEvent(ChannelNoticeEvent):
     """频道内用户添加 reaction"""
@@ -595,7 +587,7 @@ class PrivateAddReactionEvent(PrivateNoticeEvent):
             + f'to "{self.extra.body.msg_id}' + '"'
         )
 
-class PrivateAddReactionEvent(PrivateNoticeEvent):
+class PrivateDeleteReactionEvent(PrivateNoticeEvent):
     """私聊内用户取消 reaction"""
 
     __event__ = "notice.private_deleted_reaction"
@@ -609,6 +601,7 @@ class PrivateAddReactionEvent(PrivateNoticeEvent):
             + f'from "{self.extra.body.msg_id}' + '"'
         )
 
+# Guild Events
 class GuildNoticeEvent(NoticeEvent):
     """服务器相关事件"""
     group_id: int
@@ -619,7 +612,6 @@ class GuildNoticeEvent(NoticeEvent):
     
     def get_guild_id(self):
         return self.target_id
-
 
 # Guild Member Events
 class GuildMemberNoticeEvent(GuildNoticeEvent):
@@ -1001,11 +993,14 @@ __all__ = [
     "Body",
     "Extra",
     "OriginEvent",
+    "Kmarkdown",
+    "EventMessage",
     "Event",
     "MessageEvent",
     "PrivateMessageEvent",
     "ChannelMessageEvent",
     "NoticeEvent",
+    "ChannelNoticeEvent",
     "ChannelAddReactionEvent",
     "ChannelDeletedReactionEvent",
     "ChannelUpdatedMessageEvent",
@@ -1015,15 +1010,19 @@ __all__ = [
     "ChannelDeleteEvent",
     "ChannelPinnedMessageEvent",
     "ChannelUnpinnedMessageEvent",
+    "PrivateNoticeEvent",
     "PrivateUpdateMessageEvent",
     "PrivateDeleteMessageEvent",
     "PrivateAddReactionEvent",
-    "PrivateAddReactionEvent",
+    "PrivateDeleteReactionEvent",
+    "GuildNoticeEvent",
+    "GuildMemberNoticeEvent",
     "GuildMemberIncreaseNoticeEvent",
     "GuildMemberDecreaseNoticeEvent",
     "GuildMemberUpdateNoticeEvent",
     "GuildMemberOnlineNoticeEvent",
     "GuildMemberOfflineNoticeEvent",
+    "GuildRoleNoticeEvent",
     "GuildRoleAddNoticeEvent",
     "GuildRoleDeleteNoticeEvent",
     "GuildRoleUpdateNoticeEvent",
@@ -1031,6 +1030,7 @@ __all__ = [
     "GuildDeleteNoticeEvent",
     "GuildAddBlockListNoticeEvent",
     "GuildDeleteBlockListNoticeEvent",
+    "UserNoticeEvent",
     "UserJoinAudioChannelNoticeEvent",
     "UserJoinAudioChannelEvent",
     "UserInfoUpdateNoticeEvent",
@@ -1039,6 +1039,6 @@ __all__ = [
     "CartBtnClickNoticeEvent",
     "MetaEvent",
     "LifecycleMetaEvent",
-    "HeartbeatMetaEvent",
+    "HeartbeatMetaEvent"
 ]
 
