@@ -145,43 +145,15 @@ class Message(BaseMessage[MessageSegment]):
     ) -> Iterable[MessageSegment]:
         if isinstance(msg, Mapping):
             msg = cast(Mapping[str, Any], msg)
-            yield MessageSegment(msg["type"], msg.get("data") or {})
+            yield MessageSegment(msg["type"], msg.get("content") or {})
             return
         elif isinstance(msg, Iterable) and not isinstance(msg, str):
             for seg in msg:
-                yield MessageSegment(seg["type"], seg.get("data") or {})
+                yield MessageSegment(seg["type"], seg.get("content") or {})
             return
         elif isinstance(msg, str):
-
-            def _iter_message(msg: str) -> Iterable[Tuple[str, str]]:
-                text_begin = 0
-                for cqcode in re.finditer(
-                    r"\[CQ:(?P<type>[a-zA-Z0-9-_.]+)"
-                    r"(?P<params>"
-                    r"(?:,[a-zA-Z0-9-_.]+=[^,\]]+)*"
-                    r"),?\]",
-                    msg,
-                ):
-                # re.findall(r"\@(?P<username>.+)\#(?P<user_id>[0-9]+)", a)
-                    yield "text", msg[text_begin : cqcode.pos + cqcode.start()]
-                    text_begin = cqcode.pos + cqcode.end()
-                    yield cqcode.group("type"), cqcode.group("params").lstrip(",")
-                yield "text", msg[text_begin:]
-
-            for type_, data in _iter_message(msg):
-                if type_ == "text":
-                    if data:
-                        # only yield non-empty text segment
-                        yield MessageSegment(type_, {"content": unescape(data)})
-                else:
-                    data = {
-                        k: unescape(v)
-                        for k, v in map(
-                            lambda x: x.split("=", maxsplit=1),
-                            filter(lambda x: x, (x.lstrip() for x in data.split(","))),
-                        )
-                    }
-                    yield MessageSegment(type_, data)
+            yield MessageSegment("text", {"content": msg})
+            return
 
     @overrides(BaseMessage)
     def extract_plain_text(self) -> str:
@@ -214,11 +186,6 @@ class MessageDeserializer:
     datas: Dict
 
     def deserialize(self) -> Message:
-        # dict_mention = {}
-        # if self.mentions:
-        #     for mention in self.mentions:
-        #         dict_mention[mention["key"]] = mention
-
         if self.type == 1:
             return Message(MessageSegment.text(self.datas["content"]))
         elif self.type == 2:
