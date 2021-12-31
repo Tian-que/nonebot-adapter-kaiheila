@@ -82,3 +82,19 @@ class ReconnectError(KaiheilaAdapterException):
       服务端通知客户端, 代表该连接已失效, 请重新连接。客户端收到后应该主动断开当前连接。
     """
     pass
+
+class TokenError(KaiheilaAdapterException):
+    """
+    :说明:
+
+      服务端通知客户端, 代表该连接已失效, 请重新连接。客户端收到后应该主动断开当前连接。
+    """
+    def __init__(self, msg: Optional[str] = None):
+        super().__init__()
+        self.msg = msg
+
+    def __repr__(self):
+        return f"<TokenError message={self.msg}>"
+
+    def __str__(self):
+        return self.__repr__()

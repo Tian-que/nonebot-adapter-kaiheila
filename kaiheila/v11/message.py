@@ -168,6 +168,7 @@ class MessageSerializer:
     message: Message
 
     # bot 发送消息只支持这三种类型
+    # todo 要不要支持将message拆分为segment分别发送
     async def serialize(self) -> Tuple[str, str]:
         if self.message[0].type in ("text", "KMarkdown", "Card"):
             return msg_type_map[self.message[0].type], self.message[0].data['content']
