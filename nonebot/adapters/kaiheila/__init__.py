@@ -1,5 +1,16 @@
-from .v3 import Bot as V3Bot
-from .v3 import event as V3Event
-from .v3 import Adapter as V3Adapter
-from .v3 import Message as V3Message
-from .v3 import MessageSegment as V3MessageSegment
+"""
+开黑啦 v3 协议适配
+============================
+
+协议详情请看: `kaiheila V3`_
+
+.. _kaiheila V3:
+    https://developer.kaiheila.cn/doc/intro
+"""
+
+from .bot import Bot as Bot
+from .event import Event as Event
+from .adapter import Adapter as Adapter
+from .message import Message as Message
+from .message import MessageSegment as MessageSegment
+

@@ -12,7 +12,7 @@ def _b2s(b: Optional[bool]) -> Optional[str]:
     return b if b is None else str(b).lower()
 
 def code_to_emoji(emoji: str) -> str:
-    emoji = emoji.encode("unicode_escape")
+    return emoji.encode("unicode_escape")
 
 def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
     """

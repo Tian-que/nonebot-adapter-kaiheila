@@ -131,76 +131,6 @@ class Adapter(BaseAdapter):
         else:
             raise ApiNotAvailable
 
-    async def _handle_ws(self, websocket: WebSocket) -> None:
-        self_id = websocket.request.headers.get("x-self-id")
-
-        # check self_id
-        if not self_id:
-            log("WARNING", "Missing X-Self-ID Header")
-            await websocket.close(1008, "Missing X-Self-ID Header")
-            return
-        elif self_id in self.bots:
-            log("WARNING", f"There's already a bot {self_id}, ignored")
-            await websocket.close(1008, "Duplicate X-Self-ID")
-            return
-
-        # check access_token
-        response = self._check_access_token(websocket.request)
-        if response is not None:
-            content = cast(str, response.content)
-            await websocket.close(1008, content)
-            return
-
-        await websocket.accept()
-        bot = Bot(self, self_id)
-        self.connections[self_id] = websocket
-        self.bot_connect(bot)
-
-        log("INFO", f"<y>Bot {escape_tag(self_id)}</y> connected")
-
-        try:
-            while True:
-                data = await websocket.receive()
-                json_data = json.loads(data)
-                event = self.json_to_event(json_data)
-                if event:
-                    asyncio.create_task(bot.handle_event(event))
-        except Exception as e:
-            log(
-                "ERROR",
-                "<r><bg #f8bbd0>Error while process data from websocket"
-                f"for bot {escape_tag(self_id)}.</bg #f8bbd0></r>",
-                e,
-            )
-        finally:
-            try:
-                await websocket.close()
-            except Exception:
-                pass
-            self.connections.pop(self_id, None)
-            self.bot_disconnect(bot)
-
-    def _check_signature(self, request: Request) -> Optional[Response]:
-        x_signature = request.headers.get("x-signature")
-
-        secret = self.kaiheila_config.onebot_secret
-        if secret:
-            if not x_signature:
-                log("WARNING", "Missing Signature Header")
-                return Response(401, content="Missing Signature", request=request)
-
-            if request.content is None:
-                return Response(400, content="Missing Content", request=request)
-
-            body: bytes = (
-                request.content
-                if isinstance(request.content, bytes)
-                else request.content.encode("utf-8")
-            )
-            sig = hmac.new(secret.encode("utf-8"), body, "sha1").hexdigest()
-            if x_signature != "sha1=" + sig:
-                log("WARNING", "Signature Header is invalid")
-                return Response(403, content="Signature is invalid")
 
     async def get_bot_info(self, token) -> Dict:
         headers = {
@@ -234,8 +164,9 @@ class Adapter(BaseAdapter):
 
 
     async def start_forward(self) -> None:
-        for bot_token in self.kaiheila_config.bots:
+        for bot in self.kaiheila_config.kaiheila_bots:
             try:
+                bot_token = bot.token
                 url = await self._get_gateway(bot_token)
                 ws_url = URL(url)
                 self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot_token)))
