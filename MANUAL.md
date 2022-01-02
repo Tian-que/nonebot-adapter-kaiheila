@@ -47,12 +47,12 @@ driver=~fastapi+~httpx
 
 ```python
 import nonebot
-from nonebot.adapters.telegram import Adapter as TelegramAdapter
+from nonebot.adapters.kaiheila import Adapter as KaiheilaAdapter
 
 nonebot.init()
 
 driver = nonebot.get_driver()
-driver.register_adapter(TelegramAdapter)
+driver.register_adapter(KaiheilaAdapter)
 
 nonebot.load_builtin_plugins("echo")
 
