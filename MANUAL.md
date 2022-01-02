@@ -30,16 +30,16 @@ kaiheila_bots =[{"token": "1/MTA2MjE=/DnbsqfmN6/IfVCrdOiGXKcQ=="}]
 
 NoneBot 默认的驱动器为 FastAPI，它是一个服务端类型驱动器（ReverseDriver），而 Kaiheila 适配器至少需要一个客户端类型驱动器（ForwardDriver），所以你需要额外安装其他驱动器。
 
-HTTPX 是推荐的客户端类型驱动器，你可以使用 nb-cli 进行安装。
+目前仅适配了 aiohttp 客户端类型驱动器，你可以使用 nb-cli 进行安装。
 
 ```shell
-nb driver install httpx
+nb driver install aiohttp
 ```
 
 别忘了在环境文件中写入配置：
 
 ```dotenv
-driver=~fastapi+~httpx
+driver=~aiohttp
 ```
 
 ## 第一次对话
@@ -59,4 +59,4 @@ nonebot.load_builtin_plugins("echo")
 nonebot.run()
 ```
 
-现在，你可以私聊自己的 Kaiheila Bot `/echo hello world`，不出意外的话，它将回复你 `hello world`。
+现在，你可以私聊自己的 Kaiheila Bot `/echo hello world`，不出意外的话，它将回复你 `hello world`。(如果在频道内请@bot发送)
