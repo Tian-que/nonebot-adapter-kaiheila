@@ -22,8 +22,6 @@
 kaiheila_bots =[{"token": "1/MTA2MjE=/DnbsqfmN6/IfVCrdOiGXKcQ=="}]
 ```
 
-如果你需要让你的 Bot 响应除了 `/` 开头之外的消息，你需要向BotFather 发送 `/setprivacy` 并选择 `Disable`。
-
 ## 配置 NoneBot
 
 ## 配置驱动器
