@@ -2,6 +2,19 @@
 
 **此适配器还在施工中，遇到问题请尽快反馈！**
 
+## 配置 NoneBot
+
+本项目仅为 Nonebot 适配器插件，要搭建 Bot 请先阅读 [Nonebot2 文档](https://v2.nonebot.dev/)
+
+以下内容作为对于 Nonebot 文档的 `driver` 参数和 `adapter` 部分的扩充
+
+## 安装 adapter
+请使用 pip 或项目包管理工具进行安装
+
+```shell
+pip install nonebot-adapter-kaiheila
+```
+
 ## 配置 Kaiheila Bot
 
 ### 申请一个 Kaiheila 机器人
@@ -22,22 +35,20 @@
 kaiheila_bots =[{"token": "1/MTA2MjE=/DnbsqfmN6/IfVCrdOiGXKcQ=="}]
 ```
 
-## 配置 NoneBot
-
 ## 配置驱动器
 
 NoneBot 默认的驱动器为 FastAPI，它是一个服务端类型驱动器（ReverseDriver），而 Kaiheila 适配器至少需要一个客户端类型驱动器（ForwardDriver），所以你需要额外安装其他驱动器。
 
-目前仅适配了 aiohttp 客户端类型驱动器，你可以使用 nb-cli 进行安装。
+目前推荐 httpx 客户端类型驱动器，你可以使用 nb-cli 进行安装。
 
 ```shell
-nb driver install aiohttp
+nb driver install httpx
 ```
 
 别忘了在环境文件中写入配置：
 
 ```dotenv
-driver=~aiohttp
+driver=~httpx+~websockets
 ```
 
 ## 第一次对话
