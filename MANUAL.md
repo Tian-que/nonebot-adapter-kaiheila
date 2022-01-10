@@ -19,7 +19,7 @@ pip install nonebot-adapter-kaiheila
 
 ### 申请一个 Kaiheila 机器人
 
-首先你需要注册 [开黑啦](https://www.kaiheila.cn/) 帐号，加入 `机器人社区` 私聊 `冰飞FlappyIce#1437` 邀请你加入 `「开黑啦」开发者内测频道` 并进行报名获取机器人内测资格。
+首先你需要注册 [开黑啦](https://www.kaiheila.cn/) 帐号，加入 `机器人社区` 私聊 `koenigseggposche#8281` 邀请你加入 `「开黑啦」开发者内测频道` 并进行报名获取机器人内测资格。
 
 如果你已经拥有内测资格，则需要在 [开发者平台](https://developer.kaiheila.cn/) 获取 Token 
 
