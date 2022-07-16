@@ -45,7 +45,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     # 根据协议消息段类型显示消息段内容
     def __str__(self) -> str:
-        if self.type in ["text", "kmarkdown", "card"]:
+        if self.type in ["text", "KMarkdown", "Card"]:
             return str(self.data["content"])
         elif self.type == "at":
             return str(f"@{self.data['user_name']}")
