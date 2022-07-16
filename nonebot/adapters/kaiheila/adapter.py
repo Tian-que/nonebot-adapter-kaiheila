@@ -1,40 +1,36 @@
-import hmac
-import json
 import asyncio
 import inspect
-from typing import Any, Dict, List, Type, Union, Callable, Optional, cast
+import json
+import zlib
+from typing import Any, Dict, List, Type, Union, Callable, Optional
 
-from pygtrie import StringTrie
-from nonebot.typing import overrides
-from nonebot.utils import escape_tag
+import aiohttp
+from nonebot.adapters import Adapter as BaseAdapter
 from nonebot.drivers import (
     URL,
     Driver,
     Request,
-    Response,
     WebSocket,
     ForwardDriver,
 )
-
-import aiohttp
-import zlib
-from nonebot.adapters import Adapter as BaseAdapter
+from nonebot.typing import overrides
+from nonebot.utils import escape_tag
+from pygtrie import StringTrie
 
 from . import event
+from .api import get_api_method
 from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .message import Message, MessageSegment
 from .exception import NetworkError, ApiNotAvailable, ReconnectError, TokenError
+from .message import Message, MessageSegment
 from .utils import ResultStore, log, _handle_api_result
-from .api import get_api_method
 
 RECONNECT_INTERVAL = 3.0
 
 
 class Adapter(BaseAdapter):
-
     # init all event models
     event_models: StringTrie = StringTrie(separator=".")
     for model_name in dir(event):
@@ -86,21 +82,27 @@ class Adapter(BaseAdapter):
             method = get_api_method(api) if not data.get("method") else data.get("method")
 
             headers = data.get("headers", {})
-            if data.get("file"):
-                pass
-            if data.get("content"):
-                data=json.dumps(data)
+
+            if "files" in data:
+                files = data["files"]
+                del data["files"]
+            elif "file" in data:  # 目前只有asset/create接口需要上传文件（大概）
+                files = {"file": data["file"]}
+                del data["file"]
+            else:
+                files = None
+                data = json.dumps(data)
                 headers["Content-Type"] = "application/json"
+
             if bot.token is not None:
-                headers[
-                    "Authorization"
-                ] = f"Bot {bot.token}"
+                headers["Authorization"] = f"Bot {bot.token}"
 
             request = Request(
                 method,
                 self.api_root + api,
                 headers=headers,
                 data=data,
+                files=files,
                 timeout=self.config.api_timeout,
             )
 
@@ -131,7 +133,6 @@ class Adapter(BaseAdapter):
         else:
             raise ApiNotAvailable
 
-
     async def get_bot_info(self, token) -> Dict:
         headers = {
             'Authorization': f'Bot {token}',
@@ -148,20 +149,19 @@ class Adapter(BaseAdapter):
 
     async def _get_gateway(self, token: str) -> str:
         headers = {
-                    'Authorization': f'Bot {token}',
-                    'Content-type': 'application/json'
-                }
+            'Authorization': f'Bot {token}',
+            'Content-type': 'application/json'
+        }
 
         params = {'compress': 1 if self.kaiheila_config.compress else 0}
 
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.api_root}gateway/index",
-                                    headers=headers,
-                                    params=params) as resp:
+                                   headers=headers,
+                                   params=params) as resp:
                 result = await resp.json()
 
         return _handle_api_result(result)["url"]
-
 
     async def start_forward(self) -> None:
         for bot in self.kaiheila_config.kaiheila_bots:
@@ -220,8 +220,8 @@ class Adapter(BaseAdapter):
                                 continue
                             if not bot:
                                 if (
-                                    not isinstance(event, LifecycleMetaEvent)
-                                    or event.sub_type != "connect"
+                                        not isinstance(event, LifecycleMetaEvent)
+                                        or event.sub_type != "connect"
                                 ):
                                     continue
                                 bot_info = await self.get_bot_info(bot_token)
@@ -287,13 +287,13 @@ class Adapter(BaseAdapter):
                 break
             await self.connections.get(bot.self_id).send(json.dumps({
                 "s": 2,
-                "sn": ResultStore.get_sn(bot.self_id) # 客户端目前收到的最新的消息 sn
+                "sn": ResultStore.get_sn(bot.self_id)  # 客户端目前收到的最新的消息 sn
             }))
             await asyncio.sleep(26)
 
     @classmethod
     def json_to_event(
-        cls, json_data: Any, self_id: Optional[str] = None,
+            cls, json_data: Any, self_id: Optional[str] = None,
     ) -> Optional[Event]:
         if not isinstance(json_data, dict):
             return None
@@ -309,7 +309,7 @@ class Adapter(BaseAdapter):
                 return LifecycleMetaEvent.parse_obj(data)
             elif json_data['d']['code'] == 40103:
                 raise ReconnectError
-            elif json_data['d']['code'] == 40101: 
+            elif json_data['d']['code'] == 40101:
                 raise TokenError("无效的 token")
             elif json_data['d']['code'] == 40102:
                 raise TokenError("token 验证失败")
@@ -357,7 +357,7 @@ class Adapter(BaseAdapter):
                 data['message_type'] = 'private' if data['message_type'] == 'person' else data['message_type']
                 data['extra']['content'] = data.get('content')
                 data['event'] = data['extra']
-            
+
             data['message_id'] = data.get('msg_id')
             post_type = data['post_type']
             detail_type = data.get(f"{post_type}_type")
@@ -402,12 +402,12 @@ class Adapter(BaseAdapter):
           - ``List[Type[Event]]``
         """
         return [model.value for model in cls.event_models.prefixes("." + event_name)][
-            ::-1
-        ]
+               ::-1
+               ]
 
     @classmethod
     def custom_send(
-        cls,
-        send_func: Callable[[Bot, Event, Union[str, Message, MessageSegment]], None],
+            cls,
+            send_func: Callable[[Bot, Event, Union[str, Message, MessageSegment]], None],
     ):
         setattr(Bot, "send_handler", send_func)
