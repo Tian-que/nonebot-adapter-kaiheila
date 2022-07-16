@@ -1,16 +1,13 @@
 import re
-from typing import Any, Union, Callable, TYPE_CHECKING
-import re
-
-from nonebot.typing import overrides
-from nonebot.message import handle_event
+from typing import Any, Union, Callable, TYPE_CHECKING, IO, BinaryIO
 
 from nonebot.adapters import Bot as BaseBot
-from yarl import URL
+from nonebot.message import handle_event
+from nonebot.typing import overrides
 
-from .utils import log
-from .message import Message, MessageSegment, MessageSerializer
 from .event import Event, MessageEvent
+from .message import Message, MessageSegment, MessageSerializer
+from .utils import log
 
 if TYPE_CHECKING:
     from .event import Event
@@ -77,18 +74,17 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
             nickname = m.group(1)
             log("DEBUG", f"User is calling me {nickname}")
             event.to_me = True
-            first_msg_seg.data["content"] = first_text[m.end() :]
+            first_msg_seg.data["content"] = first_text[m.end():]
 
 
 async def send(
-    bot: "Bot",
-    event: Event,
-    message: Union[str, Message, MessageSegment],
-    reply_sender: bool = False,
-    is_temp_msg: bool = False,
-    **kwargs: Any,
+        bot: "Bot",
+        event: Event,
+        message: Union[str, Message, MessageSegment],
+        reply_sender: bool = False,
+        is_temp_msg: bool = False,
+        **kwargs: Any,
 ) -> Any:
-
     # 保证Message格式
     message = message if isinstance(message, Message) else Message(message)
 
@@ -125,7 +121,7 @@ async def send(
 
         api = 'direct-message/create'
 
-    return await bot.call_api(api = api, **params)
+    return await bot.call_api(api=api, **params)
 
 
 class Bot(BaseBot):
@@ -184,12 +180,11 @@ class Bot(BaseBot):
 
     @overrides(BaseBot)
     async def send(
-        self,
-        event: Event,
-        message: Union[str, Message, MessageSegment],
-        **kwargs,
+            self,
+            event: Event,
+            message: Union[str, Message, MessageSegment],
+            **kwargs,
     ) -> Any:
-
         """
         :说明:
 
@@ -214,6 +209,10 @@ class Bot(BaseBot):
         """
         return await self.__class__.send_handler(self, event, message, **kwargs)
 
-    async def upload_file(self, file_path: str) -> str:
-        result = await self.call_api("asset/create", file = open(file_path, "rb"))
+    async def upload_file(self, file: Union[str, BinaryIO, tuple[str, bytes, str]]) -> str:
+        if isinstance(file, str):
+            with open(file, "rb") as f:
+                result = await self.call_api("asset/create", file=f)
+        else:
+            result = await self.call_api("asset/create", file=file)
         return result.get("url")
