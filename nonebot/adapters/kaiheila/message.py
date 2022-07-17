@@ -4,11 +4,11 @@ from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast
 from deprecated import deprecated
 from kmarkdown_it import KMarkdownIt
 from lazy import lazy
-from nonebot.adapters import Message as BaseMessage
-from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
 
-from .exception import UnsupportedMessageType
+from nonebot.adapters import Message as BaseMessage
+from nonebot.adapters import MessageSegment as BaseMessageSegment
+from .exception import UnsupportedMessageType, UnsupportedMessageOperation
 
 msg_type_map = {
     "text": 1,
@@ -69,16 +69,24 @@ class MessageSegment(BaseMessageSegment["Message"]):
             return ""
 
     @overrides(BaseMessageSegment)
-    def __add__(self, other) -> "Message":
-        # TODO：判断类型
-        return Message(self) + (MessageSegment.text(other) if isinstance(
-            other, str) else other)
+    def __add__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
+        if isinstance(other, str):
+            if self.type == "text" or self.type == "KMarkdown":
+                return Message(MessageSegment(self.type, {"content": self.data["content"] + other}))
+            else:
+                raise UnsupportedMessageOperation()
+        else:
+            return super().__add__(other)
 
     @overrides(BaseMessageSegment)
     def __radd__(self, other) -> "Message":
-        # TODO：判断类型
-        return (MessageSegment.text(other)
-                if isinstance(other, str) else Message(other)) + self
+        if isinstance(other, str):
+            if self.type == "text" or self.type == "KMarkdown":
+                return Message(MessageSegment(self.type, {"content": other + self.data["content"]}))
+            else:
+                raise UnsupportedMessageOperation()
+        else:
+            return super().__add__(other)
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
@@ -141,17 +149,40 @@ class Message(BaseMessage[MessageSegment]):
 
     @overrides(BaseMessage)
     def __add__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        # TODO：判断类型
-        return super(Message, self).__add__(
-            MessageSegment.text(other) if isinstance(other, str) else other
-        )
+        assert len(self) == 1
+        if isinstance(other, str):
+            return Message(self[0] + other)
+        else:
+            return super().__add__(other)
 
     @overrides(BaseMessage)
     def __radd__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        # TODO：判断类型
-        return super(Message, self).__radd__(
-            MessageSegment.text(other) if isinstance(other, str) else other
-        )
+        assert len(self) == 1
+        if isinstance(other, str):
+            return Message(other + self[0])
+        else:
+            return super().__add__(other)
+
+    @overrides(BaseMessage)
+    def __iadd__(self, other: Union[str, MessageSegment, Iterable[MessageSegment]]) -> "Message":
+        assert len(self) == 1
+        seg = self[0]
+        if seg.type == "text" or seg.type == "KMarkdown":
+            if isinstance(other, str):
+                seg.data["content"] += other
+                return self
+            elif isinstance(other, MessageSegment):
+                if seg.type == other.type:
+                    seg.data["content"] += other.data["content"]
+                    return self
+            else:
+                other = list(other)
+                if len(other) == 1:
+                    other_seg = other[0]
+                    if seg.type == other_seg.type:
+                        seg.data["content"] += other_seg.data["content"]
+                        return self
+        raise UnsupportedMessageOperation()
 
     @staticmethod
     @overrides(BaseMessage)
