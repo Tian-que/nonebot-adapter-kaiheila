@@ -75,6 +75,14 @@ class UnsupportedMessageType(KaiheilaAdapterException):
     """
     pass
 
+class UnsupportedMessageOperation(KaiheilaAdapterException):
+    """
+    :说明:
+
+      在调用不支持的 Message 或 MessageSegment 操作时抛出，例如对图片类型的 MessageSegment 使用加运算。
+    """
+    pass
+
 class ReconnectError(KaiheilaAdapterException):
     """
     :说明:
