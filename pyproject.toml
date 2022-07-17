@@ -16,6 +16,9 @@ packages = [
 python = "^3.7.3"
 nonebot2 = "^2.0.0-beta.1"
 aiohttp = "^3.8.1"
+deprecated = "^1.2.13"
+lazy = "^1.4"
+kmarkdown-it-py = "^0.1.1-alpha.1"
 
 # [[tool.poetry.source]]
 # name = "aliyun"
