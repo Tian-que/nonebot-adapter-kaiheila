@@ -4,11 +4,11 @@ from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast
 from deprecated import deprecated
 from kmarkdown_it import KMarkdownIt
 from lazy import lazy
-from nonebot.typing import overrides
-
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
-from .exception import UnsupportedMessageType, UnsupportedMessageOperation
+from nonebot.typing import overrides
+
+from .exception import UnsupportedMessageType, UnsupportedMessageOperation, InvalidMessage
 
 msg_type_map = {
     "text": 1,
@@ -16,9 +16,13 @@ msg_type_map = {
     "video": 3,
     "file": 4,
     "audio": 8,
-    "Kmarkdown": 9,
-    "Card": 10,
+    "kmarkdown": 9,
+    "card": 10,
 }
+
+rev_msg_type_map = {}
+for msg_type, code in msg_type_map.items():
+    rev_msg_type_map[code] = msg_type
 
 # 根据协议消息段类型显示消息段内容
 segment_text = {
@@ -27,7 +31,7 @@ segment_text = {
     "video": "[视频]",
     "file": "[文件]",
     "audio": "[音频]",
-    "kmarkdown": "[Kmarkdown消息]",
+    "kmarkdown": "[KMarkdown消息]",
     "card": "[卡片消息]",
 }
 
@@ -52,41 +56,51 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return Message
 
     def __str__(self) -> str:
-        if self.type in ["text", "KMarkdown"]:
+        if self.type in ["text", "kmarkdown"]:
             return str(self.data["content"])
         elif self.type == "at":
             return str(f"@{self.data['user_name']}")
         else:
-            return segment_text.get(self.type, "[未知类型消息]")
+            return segment_text.get(msg_type_map.get(self.type, ""), "[未知类型消息]")
 
     @lazy
     def plain_text(self):
         if self.type == "text":
             return str(self.data["content"])
-        elif self.type == "KMarkdown":
+        elif self.type == "kmarkdown":
             return kmd_it.extract_plain_text(self.data["content"])
         else:
             return ""
 
     @overrides(BaseMessageSegment)
     def __add__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
-        if isinstance(other, str):
-            if self.type == "text" or self.type == "KMarkdown":
-                return Message(MessageSegment(self.type, {"content": self.data["content"] + other}))
-            else:
-                raise UnsupportedMessageOperation()
-        else:
-            return super().__add__(other)
+        return Message(self.conduct(other))
 
     @overrides(BaseMessageSegment)
-    def __radd__(self, other) -> "Message":
+    def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
         if isinstance(other, str):
-            if self.type == "text" or self.type == "KMarkdown":
-                return Message(MessageSegment(self.type, {"content": other + self.data["content"]}))
+            other = MessageSegment(self.type, {"content": other})
+        return Message(other.conduct(self))
+
+    def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
+        """
+        连接两个或多个 MessageSegment，必须同时为 text 或 KMarkdown
+        """
+        if self.type != "text" and self.type != "kmarkdown":
+            raise UnsupportedMessageOperation()
+
+        if isinstance(other, str):
+            return MessageSegment(self.type, {"content": self.data["content"] + other})
+        elif isinstance(other, MessageSegment):
+            other = [other]
+
+        seg = self
+        for o in other:
+            if o.type == seg.type:
+                seg = MessageSegment(seg.type, {"content": seg.data["content"] + o.data["content"]})
             else:
                 raise UnsupportedMessageOperation()
-        else:
-            return super().__add__(other)
+        return seg
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
@@ -126,13 +140,13 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @staticmethod
     def KMarkdown(content: str) -> "MessageSegment":
-        return MessageSegment("KMarkdown", {
+        return MessageSegment("kmarkdown", {
             "content": content
         })
 
     @staticmethod
     def Card(content: str) -> "MessageSegment":
-        return MessageSegment("Card", {
+        return MessageSegment("card", {
             "content": content
         })
 
@@ -149,39 +163,23 @@ class Message(BaseMessage[MessageSegment]):
 
     @overrides(BaseMessage)
     def __add__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        assert len(self) == 1
         if isinstance(other, str):
-            return Message(self[0] + other)
+            return self[0] + other
         else:
             return super().__add__(other)
 
     @overrides(BaseMessage)
     def __radd__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        assert len(self) == 1
         if isinstance(other, str):
-            return Message(other + self[0])
+            return other + self[0]
         else:
             return super().__add__(other)
 
     @overrides(BaseMessage)
     def __iadd__(self, other: Union[str, MessageSegment, Iterable[MessageSegment]]) -> "Message":
-        assert len(self) == 1
-        seg = self[0]
-        if seg.type == "text" or seg.type == "KMarkdown":
-            if isinstance(other, str):
-                seg.data["content"] += other
-                return self
-            elif isinstance(other, MessageSegment):
-                if seg.type == other.type:
-                    seg.data["content"] += other.data["content"]
-                    return self
-            else:
-                other = list(other)
-                if len(other) == 1:
-                    other_seg = other[0]
-                    if seg.type == other_seg.type:
-                        seg.data["content"] += other_seg.data["content"]
-                        return self
+        if self[0].type == "text" or self[0].type == "kmarkdown":
+            self[0] = self[0].conduct(other)
+            return self
         raise UnsupportedMessageOperation()
 
     @staticmethod
@@ -189,7 +187,6 @@ class Message(BaseMessage[MessageSegment]):
     def _construct(
             msg: Union[str, Mapping, Iterable[Mapping]]
     ) -> Iterable[MessageSegment]:
-        # TODO：重构
         if isinstance(msg, Mapping):
             msg = cast(Mapping[str, Any], msg)
             yield MessageSegment(msg["type"], msg.get("content") or {})
@@ -206,6 +203,22 @@ class Message(BaseMessage[MessageSegment]):
     def extract_plain_text(self) -> str:
         return "".join(seg.plain_text for seg in self)
 
+    def reduce(self) -> None:
+        """合并消息内连续的纯文本段和 KMarkdown 段。"""
+        index = 1
+        while index < len(self):
+            prev = self[index - 1]
+            cur = self[index]
+            if prev.type == "text" and cur.type == "text" \
+                    or prev.type == "kmarkdown" and cur.type == "kmarkdown":
+                # 重新构造MessageSegment，确保lazy字段更新
+                self[index - 1] = MessageSegment(prev.type, {
+                    "content": prev.data["content"] + cur.data["content"]
+                })
+                del self[index]
+            else:
+                index += 1
+
 
 @dataclass
 class MessageSerializer:
@@ -214,15 +227,22 @@ class MessageSerializer:
     """
     message: Message
 
-    # bot 发送消息只支持这三种类型
-    # todo 要不要支持将message拆分为segment分别发送
-    async def serialize(self) -> Tuple[str, str]:
-        if self.message[0].type in ("text", "KMarkdown", "Card"):
-            return msg_type_map[self.message[0].type], self.message[0].data['content']
-        elif self.message[0].type in ("image", "audio", "video", "file"):
-            return self.message[0].data['file_key']
+    def __post_init__(self):
+        self.message.reduce()
+
+    async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
+        if len(self.message) != 1:
+            raise InvalidMessage()
+
+        msg_type = self.message[0].type
+        msg_type_code = msg_type_map[msg_type]
+        # bot 发送消息只支持这三种类型
+        if msg_type in ("text", "kmarkdown", "card"):
+            return msg_type_code, self.message[0].data['content']
+        elif msg_type in ("image", "audio", "video", "file") and not for_send:
+            return msg_type_code, self.message[0].data['file_key']
         else:
-            raise UnsupportedMessageType
+            raise UnsupportedMessageType()
 
 
 @dataclass
@@ -230,21 +250,24 @@ class MessageDeserializer:
     """
     开黑啦 协议 Message 反序列化器。
     """
-    type: str
+    type_code: int
     data: Dict
 
+    def __post_init__(self):
+        self.type = rev_msg_type_map.get(self.type_code, "")
+
     def deserialize(self) -> Message:
-        if self.type == 1:
+        if self.type == "text":
             return Message(MessageSegment.text(self.data["content"]))
-        elif self.type == 2:
+        elif self.type == "image":
             return Message(MessageSegment.image(self.data["content"]))
-        elif self.type == 3:
+        elif self.type == "video":
             return Message(MessageSegment.video(self.data["attachments"]["url"]))
-        elif self.type == 4:
+        elif self.type == "file":
             return Message(MessageSegment.file(self.data["attachments"]["url"]))
-        elif self.type == 9:
+        elif self.type == "kmarkdown":
             return Message(MessageSegment.KMarkdown(self.data["content"]))
-        elif self.type == 10:
+        elif self.type == "card":
             return Message(MessageSegment.Card(self.data["content"]))
         else:
             return Message(MessageSegment(self.type, self.data))

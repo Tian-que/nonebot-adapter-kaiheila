@@ -170,7 +170,7 @@ class Extra(BaseModel):
 
 class OriginEvent(BaseEvent):
     """为了区分信令中非Event事件，增加了前置OriginEvent"""
-    
+
     __event__ = ""
 
     @overrides(BaseEvent)
@@ -323,13 +323,10 @@ class MessageEvent(Event):
     @overrides(Event)
     def is_tome(self) -> bool:
         return self.to_me
-    
-    # 把 message 映射到 event.content 上
-    def __getattr__(self, name):
-        if name == "message":
-            return self.event.content
-        else:
-            super().__getattr__(name)
+
+    @property
+    def message(self) -> Message:
+        return self.event.content
 
 class PrivateMessageEvent(MessageEvent):
     """私聊消息"""
@@ -407,7 +404,7 @@ class ChannelNoticeEvent(NoticeEvent):
     """频道消息事件"""
 
     group_id: int
-    
+
     @overrides(NoticeEvent)
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
@@ -475,7 +472,7 @@ class ChannelDeleteMessageEvent(ChannelNoticeEvent):
             f'Notice {self.message_id} from {self.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
             + f'delete message "{self.extra.body.msg_id}" '
         )
-        
+
 class ChannelAddedEvent(ChannelNoticeEvent):
     """新增频道"""
 
@@ -540,7 +537,7 @@ class ChannelUnpinnedMessageEvent(ChannelNoticeEvent):
             f'Notice {self.message_id} from {self.extra.body.operator_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] '
             + f'取消频道置顶消息 "{self.extra.body.msg_id}" '
         )
-     
+
 # Private Events
 class PrivateNoticeEvent(NoticeEvent):
     "私聊消息事件"
@@ -609,7 +606,7 @@ class GuildNoticeEvent(NoticeEvent):
     @overrides(NoticeEvent)
     def get_session_id(self) -> str:
         return f"Guild_{self.group_id}_user_{self.user_id}"
-    
+
     def get_guild_id(self):
         return self.target_id
 
@@ -669,7 +666,7 @@ class GuildMemberOnlineNoticeEvent(GuildMemberNoticeEvent):
             f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
             + f'成员 "{self.extra.body.user_id}" 上线'
         )
-     
+
 class GuildMemberOfflineNoticeEvent(GuildMemberNoticeEvent):
     """服务器成员下线"""
 
@@ -682,7 +679,7 @@ class GuildMemberOfflineNoticeEvent(GuildMemberNoticeEvent):
             f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
             + f'成员 "{self.extra.body.user_id}" 离线'
         )
-     
+
 # Guild Role Events
 class GuildRoleNoticeEvent(GuildNoticeEvent):
     """服务器角色相关事件"""
@@ -700,7 +697,7 @@ class GuildRoleAddNoticeEvent(GuildRoleNoticeEvent):
             f'Notice {self.message_id} from {self.author_id}@[服务器:{self.target_id}] '
             + f'增加角色 "{self.extra.body.role_id}:{self.extra.body.name}" '
         )
-     
+
 class GuildRoleDeleteNoticeEvent(GuildRoleNoticeEvent):
     """服务器角色增加"""
 
@@ -838,7 +835,7 @@ class UserInfoUpdateNoticeEvent(UserNoticeEvent):
         return (
             f'Notice {self.message_id} from {self.author_id} '
             + f'用户变更信息 "{self.extra.body.username}:{self.extra.body.avatar}" '
-        ) 
+        )
 
 class SelfJoinGuildNoticeEvent(NoticeEvent):
     """
