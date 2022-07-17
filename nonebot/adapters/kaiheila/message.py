@@ -161,27 +161,6 @@ class Message(BaseMessage[MessageSegment]):
     def get_segment_class(cls) -> Type[MessageSegment]:
         return MessageSegment
 
-    @overrides(BaseMessage)
-    def __add__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        if isinstance(other, str):
-            return self[0] + other
-        else:
-            return super().__add__(other)
-
-    @overrides(BaseMessage)
-    def __radd__(self, other: Union[str, Mapping, Iterable[Mapping]]) -> "Message":
-        if isinstance(other, str):
-            return other + self[0]
-        else:
-            return super().__add__(other)
-
-    @overrides(BaseMessage)
-    def __iadd__(self, other: Union[str, MessageSegment, Iterable[MessageSegment]]) -> "Message":
-        if self[0].type == "text" or self[0].type == "kmarkdown":
-            self[0] = self[0].conduct(other)
-            return self
-        raise UnsupportedMessageOperation()
-
     @staticmethod
     @overrides(BaseMessage)
     def _construct(
@@ -190,14 +169,11 @@ class Message(BaseMessage[MessageSegment]):
         if isinstance(msg, Mapping):
             msg = cast(Mapping[str, Any], msg)
             yield MessageSegment(msg["type"], msg.get("content") or {})
-            return
         elif isinstance(msg, Iterable) and not isinstance(msg, str):
             for seg in msg:
                 yield MessageSegment(seg["type"], seg.get("content") or {})
-            return
         elif isinstance(msg, str):
             yield MessageSegment("text", {"content": msg})
-            return
 
     @overrides(BaseMessage)
     def extract_plain_text(self) -> str:
@@ -227,10 +203,10 @@ class MessageSerializer:
     """
     message: Message
 
-    def __post_init__(self):
+    async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
+        self.message = self.message.copy()
         self.message.reduce()
 
-    async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
         if len(self.message) != 1:
             raise InvalidMessage()
 
