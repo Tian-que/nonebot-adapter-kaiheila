@@ -37,16 +37,21 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
     if event.message_type == "private":
         event.to_me = True
     else:
-        if bot.self_id in event.extra.mention:
+        if event.message[0].type == "kmarkdown" and bot.self_id in event.extra.mention:
             event.to_me = True
             met_str = f"(met){bot.self_id}(met)"
+            raw_met_str = f"@{bot.self_name}"
 
             content: str = event.message[0].data["content"].strip()
+            raw_content: str = event.message[0].data["raw_content"].strip()
             if content.startswith(met_str):
                 content = content[len(met_str):].lstrip()
+                raw_content = raw_content[len(raw_met_str):].lstrip()
             elif content.endswith(met_str):
-                content = content[0:-len(met_str)].rstrip()
+                content = content[:-len(met_str)].rstrip()
+                raw_content = raw_content[:-len(raw_met_str)].rstrip()
             event.message[0].data["content"] = content
+            event.message[0].data["raw_content"] = raw_content
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):

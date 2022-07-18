@@ -2,8 +2,6 @@ from dataclasses import dataclass
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast
 
 from deprecated import deprecated
-from kmarkdown_it import KMarkdownIt
-from lazy import lazy
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
@@ -35,8 +33,6 @@ segment_text = {
     "card": "[卡片消息]",
 }
 
-kmd_it = KMarkdownIt()
-
 
 class MessageSegment(BaseMessageSegment["Message"]):
     """
@@ -63,12 +59,12 @@ class MessageSegment(BaseMessageSegment["Message"]):
         else:
             return segment_text.get(msg_type_map.get(self.type, ""), "[未知类型消息]")
 
-    @lazy
+    @property
     def plain_text(self):
         if self.type == "text":
-            return str(self.data["content"])
+            return self.data["content"]
         elif self.type == "kmarkdown":
-            return kmd_it.extract_plain_text(self.data["content"])
+            return self.data["raw_content"]
         else:
             return ""
 
@@ -82,6 +78,15 @@ class MessageSegment(BaseMessageSegment["Message"]):
             other = MessageSegment(self.type, {"content": other})
         return Message(other.conduct(self))
 
+    def _conduct_single(self, other: "MessageSegment") -> "MessageSegment":
+        if self.type == "text":
+            return MessageSegment("text", {"content": self.data["content"] + other.data["content"]})
+        elif self.type == "kmarkdown":
+            return MessageSegment("kmarkdown", {"content": self.data["content"] + other.data["content"],
+                                                "raw_content": self.data["raw_content"] + other.data["raw_content"]})
+        else:
+            raise UnsupportedMessageOperation()
+
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
         """
         连接两个或多个 MessageSegment，必须同时为 text 或 KMarkdown
@@ -90,14 +95,14 @@ class MessageSegment(BaseMessageSegment["Message"]):
             raise UnsupportedMessageOperation()
 
         if isinstance(other, str):
-            return MessageSegment(self.type, {"content": self.data["content"] + other})
+            other = [MessageSegment.text(other)]
         elif isinstance(other, MessageSegment):
             other = [other]
 
         seg = self
         for o in other:
             if o.type == seg.type:
-                seg = MessageSegment(seg.type, {"content": seg.data["content"] + o.data["content"]})
+                seg = self._conduct_single(o)
             else:
                 raise UnsupportedMessageOperation()
         return seg
@@ -139,9 +144,10 @@ class MessageSegment(BaseMessageSegment["Message"]):
         })
 
     @staticmethod
-    def KMarkdown(content: str) -> "MessageSegment":
+    def KMarkdown(content: str, raw_content: str) -> "MessageSegment":
         return MessageSegment("kmarkdown", {
-            "content": content
+            "content": content,
+            "raw_content": raw_content
         })
 
     @staticmethod
@@ -242,7 +248,7 @@ class MessageDeserializer:
         elif self.type == "file":
             return Message(MessageSegment.file(self.data["attachments"]["url"]))
         elif self.type == "kmarkdown":
-            return Message(MessageSegment.KMarkdown(self.data["content"]))
+            return Message(MessageSegment.KMarkdown(self.data["content"], self.data["kmarkdown"]["raw_content"]))
         elif self.type == "card":
             return Message(MessageSegment.Card(self.data["content"]))
         else:
