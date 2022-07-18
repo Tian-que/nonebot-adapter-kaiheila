@@ -194,3 +194,5 @@ docs_build/_build
 test/
 nonebot/__init__.py
 nonebot/adapters/__init__.py
+
+poetry.lock
