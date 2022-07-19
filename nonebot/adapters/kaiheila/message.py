@@ -7,6 +7,7 @@ from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
 
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation, InvalidMessage
+from .utils import unescape_kmarkdown
 
 msg_type_map = {
     "text": 1,
@@ -109,7 +110,10 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
-        return self.plain_text == self.data["content"]
+        if self.type == "kmarkdown":
+            return self.data["raw_content"] == unescape_kmarkdown(self.data["content"])
+        else:
+            return self.type == "text"
 
     @staticmethod
     @deprecated("用 KMarkdown 语法 (met)用户id/here/all(met) 代替")
