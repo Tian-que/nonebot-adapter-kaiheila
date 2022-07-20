@@ -77,15 +77,6 @@ class UnsupportedMessageType(KaiheilaAdapterException):
     pass
 
 
-class InvalidMessage(KaiheilaAdapterException):
-    """
-        :说明:
-
-          在构建/发送不合法的消息类型时抛出，例如 Message 中只有一个图片类型的 MessageSegment 时添加其他 MessageSegment。
-    """
-    pass
-
-
 class UnsupportedMessageOperation(KaiheilaAdapterException):
     """
     :说明:

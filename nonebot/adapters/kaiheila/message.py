@@ -6,7 +6,7 @@ from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
 
-from .exception import UnsupportedMessageType, UnsupportedMessageOperation, InvalidMessage
+from .exception import UnsupportedMessageType, UnsupportedMessageOperation
 from .utils import unescape_kmarkdown
 
 msg_type_map = {
@@ -225,7 +225,7 @@ class MessageSerializer:
         self.message.reduce()
 
         if len(self.message) != 1:
-            raise InvalidMessage()
+            raise UnsupportedMessageOperation()
 
         msg_type = self.message[0].type
         msg_type_code = msg_type_map[msg_type]
