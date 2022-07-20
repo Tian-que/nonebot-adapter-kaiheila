@@ -111,7 +111,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
         if self.type == "kmarkdown":
-            return self.data["raw_content"] == unescape_kmarkdown(self.data["content"])
+            return self.data["is_plain_text"]
         else:
             return self.type == "text"
 
@@ -149,9 +149,16 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @staticmethod
     def KMarkdown(content: str, raw_content: str) -> "MessageSegment":
+        # raw_content默认strip掉首尾空格，这里还原了（遵循开黑啦本体的行为）
+        unescaped = unescape_kmarkdown(content)
+        is_plain_text = unescaped.strip() == raw_content
+        if is_plain_text:
+            raw_content = unescaped
+
         return MessageSegment("kmarkdown", {
             "content": content,
-            "raw_content": raw_content
+            "raw_content": raw_content,
+            "is_plain_text": is_plain_text,
         })
 
     @staticmethod
