@@ -288,12 +288,27 @@ class Bot(BaseBot):
         # https://developer.kaiheila.cn/doc/http/message#%E5%8F%91%E9%80%81%E9%A2%91%E9%81%93%E8%81%8A%E5%A4%A9%E6%B6%88%E6%81%AF
         params = {}
 
+        msg_type_map = {
+            "text": 1,
+            "image": 2,
+            "video": 3,
+            "file": 4,
+            "audio": 8,
+            "kmarkdown": 9,
+            "card": 10,
+        }
         # type & content
         if isinstance(message, Message):
             params["type"], params["content"] = await MessageSerializer(message).serialize()
+        if isinstance(message, MessageSegment):
+            msg_type = message.type
+            msg_type_code = msg_type_map[msg_type]
+            if msg_type in ("text", "kmarkdown", "card"):
+                params["type"], params["content"] = msg_type_code, message.data['content']
+            elif msg_type in ("image", "audio", "video", "file"):
+                params["type"], params["content"] = msg_type_code, message.data['file_key']
         else:
             params["type"], params["content"] = 1, message
-
         # quote
         if quote:
             params["quote"] = quote
