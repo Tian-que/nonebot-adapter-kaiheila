@@ -70,7 +70,7 @@ class Adapter(BaseAdapter):
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
         if isinstance(self.driver, ForwardDriver):
             if not self.api_root:
-                raise ApiNotAvailable
+                raise ApiNotAvailable()
 
             if api.startswith("/api/v3/"):
                 api = api[len("/api/v3/"):]
@@ -83,16 +83,23 @@ class Adapter(BaseAdapter):
 
             headers = data.get("headers", {})
 
+            files = None
+            query = None
+            body = None
+
             if "files" in data:
                 files = data["files"]
                 del data["files"]
             elif "file" in data:  # 目前只有asset/create接口需要上传文件（大概）
                 files = {"file": data["file"]}
                 del data["file"]
-            else:
-                files = None
-                data = json.dumps(data)
-                headers["Content-Type"] = "application/json"
+
+            if "query" in data:
+                query = data["query"]
+                del data["query"]
+
+            if len(data) > 0:
+                body = data
 
             if bot.token is not None:
                 headers["Authorization"] = f"Bot {bot.token}"
@@ -101,7 +108,8 @@ class Adapter(BaseAdapter):
                 method,
                 self.api_root + api,
                 headers=headers,
-                data=data,
+                params=query,
+                data=body,
                 files=files,
                 timeout=self.config.api_timeout,
             )
