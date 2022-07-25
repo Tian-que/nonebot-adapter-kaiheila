@@ -69,3 +69,26 @@ nonebot.run()
 ```
 
 现在，你可以私聊自己的 Kaiheila Bot `/echo hello world`，不出意外的话，它将回复你 `hello world`。(如果在频道内请@bot发送)
+
+
+## 调用 API
+
+通过`bot.call_api(api, **data)`方法，你可以调用开黑啦的所有API。
+
+如果是POST接口，直接将参数以具名参数的形式传入。
+
+```python
+result = await bot.call_api("user-chat/delete", chat_code=chat_code)
+```
+
+如果是GET接口，请将查询参数以字典形式放入参数query中。
+
+```python
+result = await bot.call_api("user/view", query={"user_id": user_id})
+```
+
+对于`POST asset/create`接口（上传文件/图片），你还可以直接调用`bot.upload_file(file)`方法。
+
+你无需指明一个接口是GET方法还是POST方法，适配器会帮你自动找到接口的方法。
+
+你可以在[KOOK 开发者平台](https://developer.kaiheila.cn/doc/intro)查看所有的API。
