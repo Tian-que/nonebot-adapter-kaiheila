@@ -213,7 +213,7 @@ class Bot(BaseBot):
             self,
             *,
             user_id: str,
-            message: Union[str, Message],
+            message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
     ) -> Dict[str, Any]:
         """发送私聊消息。
@@ -231,7 +231,7 @@ class Bot(BaseBot):
             self,
             *,
             channel_id: str,
-            message: Union[str, Message],
+            message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
     ) -> Dict[str, Any]:
         """发送频道消息。
@@ -250,7 +250,7 @@ class Bot(BaseBot):
             *,
             user_id: str,
             channel_id: str,
-            message: Union[str, Message],
+            message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
     ) -> Dict[str, Any]:
         """发送频道临时消息。该消息不会存数据库，但是会在频道内只给该用户推送临时消息。用于在频道内针对用户的操作进行单独的回应通知等。
@@ -271,7 +271,7 @@ class Bot(BaseBot):
             message_type: Literal['private', 'channel', 'temp', ''] = '',
             user_id: Optional[str] = None,
             channel_id: Optional[str] = None,
-            message: Union[str, Message],
+            message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
     ) -> Dict[str, Any]:
         """发送消息。
@@ -288,27 +288,14 @@ class Bot(BaseBot):
         # https://developer.kaiheila.cn/doc/http/message#%E5%8F%91%E9%80%81%E9%A2%91%E9%81%93%E8%81%8A%E5%A4%A9%E6%B6%88%E6%81%AF
         params = {}
 
-        msg_type_map = {
-            "text": 1,
-            "image": 2,
-            "video": 3,
-            "file": 4,
-            "audio": 8,
-            "kmarkdown": 9,
-            "card": 10,
-        }
         # type & content
         if isinstance(message, Message):
             params["type"], params["content"] = await MessageSerializer(message).serialize()
-        if isinstance(message, MessageSegment):
-            msg_type = message.type
-            msg_type_code = msg_type_map[msg_type]
-            if msg_type in ("text", "kmarkdown", "card"):
-                params["type"], params["content"] = msg_type_code, message.data['content']
-            elif msg_type in ("image", "audio", "video", "file"):
-                params["type"], params["content"] = msg_type_code, message.data['file_key']
+        elif isinstance(message, MessageSegment):
+            params["type"], params["content"] = await MessageSerializer(Message(message)).serialize()
         else:
             params["type"], params["content"] = 1, message
+
         # quote
         if quote:
             params["quote"] = quote
