@@ -218,14 +218,15 @@ class MessageSerializer:
     """
     开黑啦 协议 Message 序列化器。
     """
-    message: Message
+    message: Union[Message, MessageSegment]
 
     async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
-        self.message = self.message.copy()
-        self.message.reduce()
-
         if len(self.message) != 1:
-            raise UnsupportedMessageOperation()
+            self.message = self.message.copy()
+            self.message.reduce()
+
+            if len(self.message) != 1:
+                raise UnsupportedMessageOperation()
 
         msg_type = self.message[0].type
         msg_type_code = msg_type_map[msg_type]
