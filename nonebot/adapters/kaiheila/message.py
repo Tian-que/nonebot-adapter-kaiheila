@@ -149,9 +149,11 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @staticmethod
     def KMarkdown(content: str, raw_content: str) -> "MessageSegment":
-        # raw_content默认strip掉首尾空格，这里还原了（遵循开黑啦本体的行为）
+        # 去除转义字符
         unescaped = unescape_kmarkdown(content)
         is_plain_text = unescaped.strip() == raw_content
+
+        # raw_content默认strip掉首尾空格，这里还原了（遵循开黑啦本体的行为）
         if is_plain_text:
             raw_content = unescaped
 
@@ -260,7 +262,13 @@ class MessageDeserializer:
         elif self.type == "file":
             return Message(MessageSegment.file(self.data["attachments"]["url"]))
         elif self.type == "kmarkdown":
-            return Message(MessageSegment.KMarkdown(self.data["content"], self.data["kmarkdown"]["raw_content"]))
+            msg_seg = MessageSegment.KMarkdown(self.data["content"], self.data["kmarkdown"]["raw_content"])
+            # 如果是KMarkdown消息是纯文本，直接构造纯文本消息
+            # 目的是让on_command等依赖__str__的规则能够在消息存在转义字符时正常工作
+            if msg_seg.data["is_plain_text"]:
+                return Message(MessageSegment.text(msg_seg.data["raw_content"]))
+            else:
+                return Message(msg_seg)
         elif self.type == "card":
             return Message(MessageSegment.Card(self.data["content"]))
         else:
