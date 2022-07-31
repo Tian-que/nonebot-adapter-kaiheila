@@ -339,7 +339,7 @@ class Adapter(BaseAdapter):
             return
 
         # 屏蔽 Bot 自身的消息
-        if json_data["d"]["author_id"] == self_id:
+        if json_data["d"].get("author_id") == self_id:
             return
 
         try:
