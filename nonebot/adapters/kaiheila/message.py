@@ -235,7 +235,7 @@ class MessageSerializer:
         # bot 发送消息只支持这三种类型
         if msg_type in ("text", "kmarkdown", "card"):
             return msg_type_code, self.message[0].data['content']
-        elif msg_type in ("image", "audio", "video", "file") and not for_send:
+        elif msg_type in ("image", "audio", "video", "file"):
             return msg_type_code, self.message[0].data['file_key']
         else:
             raise UnsupportedMessageType()
