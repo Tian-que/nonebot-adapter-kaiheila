@@ -1,6 +1,6 @@
 import re
 from os import PathLike
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable
+from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable, Tuple
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
@@ -327,13 +327,13 @@ class Bot(BaseBot):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, tuple[str, bytes, str]]) -> str:
+    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, Tuple[str, bytes, str]]) -> str:
         """
         上传文件。
 
         参数:
             file: 文件，可以是文件路径（str, PathLike[str]）、打开的文件流（BinaryIO）
-                  或二进制数据（tuple[str, bytes, str]，分别表示文件名、内容和MIME类型）
+                  或二进制数据（Tuple[str, bytes, str]，分别表示文件名、内容和MIME类型）
 
         返回值:
             文件的 URL
