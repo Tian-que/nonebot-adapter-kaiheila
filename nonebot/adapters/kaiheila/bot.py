@@ -1,6 +1,6 @@
 import re
 from os import PathLike
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable, Tuple
+from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable, Tuple, Sequence
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
@@ -327,20 +327,22 @@ class Bot(BaseBot):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, Tuple[str, bytes, str]]) -> str:
+    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes,
+                                            Tuple[str, Union[str, PathLike[str], BinaryIO, bytes], str]],
+                          filename: Optional[str] = None) -> str:
         """
         上传文件。
 
         参数:
-            file: 文件，可以是文件路径（str, PathLike[str]）、打开的文件流（BinaryIO）
-                  或二进制数据（Tuple[str, bytes, str]，分别表示文件名、内容和MIME类型）
+            file: 文件，可以是文件路径（str, PathLike[str]）、打开的文件流（BinaryIO）、或二进制数据（bytes）
+            filename: 文件名
 
         返回值:
             文件的 URL
         """
-        if isinstance(file, str) or isinstance(file, PathLike):
-            with open(file, "rb") as f:
-                result = await self.call_api("asset/create", file=f)
-        else:
-            result = await self.call_api("asset/create", file=file)
+        # 旧版本API是直接把三元组传参到file，这里处理兼容性
+        # 经过测试，服务器会用从文件读取到的mime覆盖掉我们传过去的mime
+        if not isinstance(file, Sequence) or len(file) != 3:
+            file = (filename or "upload-file", file, "application/octet-stream")
+        result = await self.call_api("asset/create", file=file)
         return result.get("url")
