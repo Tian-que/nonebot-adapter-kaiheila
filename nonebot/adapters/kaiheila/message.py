@@ -220,7 +220,7 @@ class MessageSerializer:
     """
     开黑啦 协议 Message 序列化器。
     """
-    message: Union[Message, MessageSegment]
+    message: Message
 
     async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
         if len(self.message) != 1:
@@ -232,10 +232,13 @@ class MessageSerializer:
 
         msg_type = self.message[0].type
         msg_type_code = msg_type_map[msg_type]
-        # bot 发送消息只支持这三种类型
+        # bot 发送消息只支持"text", "kmarkdown", "card"
+        # 经测试还支持"image", "video", "file"
         if msg_type in ("text", "kmarkdown", "card"):
             return msg_type_code, self.message[0].data['content']
-        elif msg_type in ("image", "audio", "video", "file"):
+        elif msg_type in ("image", "video", "file"):
+            return msg_type_code, self.message[0].data['file_key']
+        elif msg_type == "audio" and not for_send:
             return msg_type_code, self.message[0].data['file_key']
         else:
             raise UnsupportedMessageType()
