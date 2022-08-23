@@ -17,18 +17,14 @@ python = "^3.7.3"
 nonebot2 = "^2.0.0-beta.1"
 aiohttp = "^3.8.1"
 deprecated = "^1.2.13"
-lazy = "^1.4"
 
 # [[tool.poetry.source]]
 # name = "aliyun"
 # url = "https://mirrors.aliyun.com/pypi/simple/"
-httpx = "^0.21.1"
 # default = true
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"
-poetry-core = "^1.0.7"
-nonebot2 = {git = "https://github.com/nonebot/nonebot2.git", rev = "dev"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
