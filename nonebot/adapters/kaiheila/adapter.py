@@ -23,7 +23,7 @@ from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .exception import NetworkError, ApiNotAvailable, ReconnectError, TokenError
+from .exception import ApiNotAvailable, ReconnectError, TokenError, ActionFailed
 from .message import Message, MessageSegment
 from .utils import ResultStore, log, _handle_api_result
 
@@ -114,30 +114,21 @@ class Adapter(BaseAdapter):
                 timeout=self.config.api_timeout,
             )
 
-            try:
-                response = await self.driver.request(request)
-                if 200 <= response.status_code < 300:
-                    if not response.content:
-                        raise ValueError("Empty response")
+            response = await self.driver.request(request)
+            if 200 <= response.status_code < 300:
+                if not response.content:
+                    raise ValueError("Empty response")
+                result = json.loads(response.content)
+                return _handle_api_result(result)
+            else:
+                # API调用失败也可能返回非200的状态码（如403）
+                # 尝试输出更为详细的信息
+                try:
                     result = json.loads(response.content)
                     return _handle_api_result(result)
-                try:
-                    # 尝试输出更为详细的信息
-                    result = json.loads(response.content)
-                    raise NetworkError(
-                        f"HTTP request received unexpected "
-                        f"status code: {response.status_code} "
-                        "({})".format(result.get("data"))
-                    )
                 except json.decoder.JSONDecodeError:
-                    raise NetworkError(
-                        f"HTTP request received unexpected "
-                        f"status code: {response.status_code} "
-                    )
-            except NetworkError:
-                raise
-            except Exception as e:
-                raise NetworkError("HTTP request failed") from e
+                    raise ActionFailed(code=response.status_code)
+
         else:
             raise ApiNotAvailable
 
