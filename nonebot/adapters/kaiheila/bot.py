@@ -327,8 +327,7 @@ class Bot(BaseBot):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes,
-                                            Tuple[str, Union[str, PathLike[str], BinaryIO, bytes], str]],
+    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes],
                           filename: Optional[str] = None) -> str:
         """
         上传文件。
@@ -340,9 +339,6 @@ class Bot(BaseBot):
         返回值:
             文件的 URL
         """
-        # 旧版本API是直接把三元组传参到file，这里处理兼容性
-        # 经过测试，服务器会用从文件读取到的mime覆盖掉我们传过去的mime
-        if not isinstance(file, Sequence) or len(file) != 3:
-            file = (filename or "upload-file", file, "application/octet-stream")
+        file = (filename or "upload-file", file, "application/octet-stream")
         result = await self.call_api("asset/create", file=file)
         return result.get("url")
