@@ -1,5 +1,7 @@
+import json
 from typing import Optional
 
+from nonebot.drivers import Response
 from nonebot.exception import ActionFailed as BaseActionFailed
 from nonebot.exception import AdapterException
 from nonebot.exception import ApiNotAvailable as BaseApiNotAvailable
@@ -20,27 +22,42 @@ class ActionFailed(BaseActionFailed, KaiheilaAdapterException):
     """
     :说明:
 
-      API 请求返回错误信息。
+        API 请求返回错误信息。
 
     :参数:
 
-      * ``retcode: Optional[int]``: 错误码
+        * ``response: Response``: 响应体
     """
 
-    def __init__(self, **kwargs):
-        super().__init__()
-        self.info = kwargs
+    def __init__(self, response: Response):
+        self.status_code: int = response.status_code
+        self.code: Optional[int] = None
+        self.message: Optional[str] = None
+        self.data: Optional[dict] = None
+        if response.content:
+            body = json.loads(response.content)
+            self._prepare_body(body)
 
     def __repr__(self):
         return (
-                f"<ActionFailed "
-                + ", ".join(f"{k}={v}" for k, v in self.info.items())
-                + ">"
+            f"<ActionFailed: {self.status_code}, code={self.code}, "
+            f"message={self.message}, data={self.data}>"
         )
 
     def __str__(self):
         return self.__repr__()
 
+    def _prepare_body(self, body: dict):
+        self.code = body.get("code", None)
+        self.message = body.get("message", None)
+        self.data = body.get("data", None)
+
+class UnauthorizedException(ActionFailed):
+    pass
+
+
+class RateLimitException(ActionFailed):
+    pass
 
 class NetworkError(BaseNetworkError, KaiheilaAdapterException):
     """
@@ -50,7 +67,7 @@ class NetworkError(BaseNetworkError, KaiheilaAdapterException):
 
     :参数:
 
-      * ``retcode: Optional[int]``: 错误码
+      * ``msg: Optional[int]``: 错误信息
     """
 
     def __init__(self, msg: Optional[str] = None):
