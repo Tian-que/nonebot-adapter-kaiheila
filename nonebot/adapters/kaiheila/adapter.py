@@ -1,3 +1,4 @@
+import re
 import asyncio
 import inspect
 import json
@@ -18,7 +19,7 @@ from nonebot.utils import escape_tag
 from pygtrie import StringTrie
 
 from . import event
-from .api import get_api_method
+from .api import api_handler
 from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
@@ -72,72 +73,20 @@ class Adapter(BaseAdapter):
             if not self.api_root:
                 raise ApiNotAvailable()
 
+            match = re.findall(r'[A-Z]', api)
+            if len(match) > 0:
+                for m in match:
+                    api = api.replace(m, "-"+m.lower())
+            api = api.replace("_","/")
+
             if api.startswith("/api/v3/"):
                 api = api[len("/api/v3/"):]
             elif api.startswith("api/v3"):
                 api = api[len("api/v3"):]
             api = api.strip("/")
-
-            # 判断 POST 或 GET
-            method = get_api_method(api) if not data.get("method") else data.get("method")
-
-            headers = data.get("headers", {})
-
-            files = None
-            query = None
-            body = None
-
-            if "files" in data:
-                files = data["files"]
-                del data["files"]
-            elif "file" in data:  # 目前只有asset/create接口需要上传文件（大概）
-                files = {"file": data["file"]}
-                del data["file"]
-
-            if "query" in data:
-                query = data["query"]
-                del data["query"]
-
-            if len(data) > 0:
-                body = data
-
-            if bot.token is not None:
-                headers["Authorization"] = f"Bot {bot.token}"
-
-            request = Request(
-                method,
-                self.api_root + api,
-                headers=headers,
-                params=query,
-                data=body,
-                files=files,
-                timeout=self.config.api_timeout,
-            )
-
-            try:
-                response = await self.driver.request(request)
-                if 200 <= response.status_code < 300:
-                    if not response.content:
-                        raise ValueError("Empty response")
-                    result = json.loads(response.content)
-                    return _handle_api_result(result)
-                try:
-                    # 尝试输出更为详细的信息
-                    result = json.loads(response.content)
-                    raise NetworkError(
-                        f"HTTP request received unexpected "
-                        f"status code: {response.status_code} "
-                        "({})".format(result.get("data"))
-                    )
-                except json.decoder.JSONDecodeError:
-                    raise NetworkError(
-                        f"HTTP request received unexpected "
-                        f"status code: {response.status_code} "
-                    )
-            except NetworkError:
-                raise
-            except Exception as e:
-                raise NetworkError("HTTP request failed") from e
+            log("DEBUG", f"Calling API <y>{api}</y>")
+            return await api_handler(self,bot,api,**data)
+        
         else:
             raise ApiNotAvailable
 
@@ -382,7 +331,7 @@ class Adapter(BaseAdapter):
                     log("DEBUG", "Event Parser Error", e)
             else:
                 event = Event.parse_obj(json_data)
-
+            log("DEBUG",str(event.dict()))
             return event
         except Exception as e:
             log(

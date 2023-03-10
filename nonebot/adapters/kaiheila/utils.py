@@ -1,10 +1,10 @@
 import asyncio
 from io import StringIO
 from typing import Any, Dict, Tuple, Optional
-
 from nonebot.utils import logger_wrapper
 
 from .exception import ActionFailed
+
 
 log = logger_wrapper("Kaiheila")
 
@@ -63,16 +63,18 @@ def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
 
     :返回:
 
-        - ``Any``: API 调用返回数据
+        - ``T``: API 调用返回数据
 
     :异常:
 
         - ``ActionFailed``: API 调用失败
     """
     if isinstance(result, dict):
+        log("DEBUG", "API result "+str(result))
         if result.get("code") != 0:
             raise ActionFailed(**result)
-        return result.get("data")
+        else:
+            return result.get("data")
 
 
 class ResultStore:

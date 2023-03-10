@@ -10,6 +10,7 @@ from nonebot.utils import escape_tag
 from nonebot.adapters import Event as BaseEvent
 from enum import IntEnum
 
+from .api import User, Guild, Channel, Role, Emoji
 from .message import Message, MessageDeserializer
 from .exception import NoLogException
 
@@ -51,79 +52,6 @@ class SignalTypes(IntEnum):
     RECONNECT = 5
     RESUME_ACK = 6
     SYS = 255
-
-class Role(BaseModel):
-    role_id: Optional[int] = Field(None)
-    name: Optional[str] = Field(None)
-    color: Optional[int] = Field(None)
-    position: Optional[int] = Field(None)
-    hoist: Optional[int] = Field(None)
-    mentionable: Optional[int] = Field(None)
-    permissions: Optional[int] = Field(None)
-
-class Channel(BaseModel):
-    id_: Optional[str] = Field(None, alias="id")
-    name: Optional[str] = Field(None)
-    user_id: Optional[str] = Field(None)
-    guild_id: Optional[str] = Field(None)
-    topic: Optional[str] = Field(None)
-    is_category: Optional[bool] = Field(None)
-    parent_id: Optional[str] = Field(None)
-    level: Optional[int] = Field(None)
-    slow_mode: Optional[int] = Field(None)
-    type: Optional[int] = Field(None)
-    permission_overwrites: Optional[List[Dict]] = Field(None)
-    permission_users: Optional[List[Dict[str, Union["User", int]]]] = Field(None)
-    master_id: Optional[str] = Field(None)
-    permission_sync: Optional[int] = Field(None)
-    limit_amount: Optional[int] = Field(None)
-
-class User(BaseModel):
-    """
-    开黑啦 User 字段
-
-    https://developer.kaiheila.cn/doc/objects
-    """
-    id_: Optional[str] = Field(None, alias="id")
-    username: Optional[str] = Field(None)
-    nickname: Optional[str] = Field(None)
-    identify_num: Optional[str] = Field(None)
-    online: Optional[bool] = Field(None)
-    bot: Optional[bool] = Field(None)
-    os: Optional[str] = Field(None)
-    status: Optional[int] = Field(None)
-    avatar: Optional[str] = Field(None)
-    vip_avatar: Optional[str] = Field(None)
-    mobile_verified: Optional[bool] = Field(None)
-    roles: Optional[List[int]] = Field(None)
-    joined_at: Optional[int] = Field(None)
-    active_time: Optional[int] = Field(None)
-
-class Guild(BaseModel):
-    id_: Optional[str] = Field(None, alias="id")
-    name: Optional[str] = Field(None)
-    topic: Optional[str] = Field(None)
-    master_id: Optional[str] = Field(None)
-    icon: Optional[str] = Field(None)
-    notify_type: Optional[int] = Field(None)  # 通知类型, 0代表默认使用服务器通知设置，1代表接收所有通知, 2代表仅@被提及，3代表不接收通知
-    region: Optional[str] = Field(None)
-    enable_open: Optional[bool] = Field(None)
-    open_id: Optional[str] = Field(None)
-    default_channel_id: Optional[str] = Field(None)
-    welcome_channel_id: Optional[str] = Field(None)
-    roles: Optional[List[Role]] = Field(None)
-    channels: Optional[List[Channel]] = Field(None)
-
-class Emoji(BaseModel):
-    id_: str = Field(alias="id")
-    name: str
-
-    # 转义 unicdoe 为 emoji表情
-    @root_validator(pre=True)
-    def parse_emoji(cls, values: dict):
-        values['id'] = chr(int(values['id'][2:-2]))
-        values['name'] = chr(int(values['name'][2:-2]))
-        return values
 
 class Attachment(BaseModel):
     type: str
@@ -246,8 +174,13 @@ class Event(OriginEvent):
     """
     __event__ = ""
     channel_type: Literal["PERSON", "GROUP"]
-    type_: int = Field(alias="type")  # 1:文字消息, 2:图片消息，3:视频消息，4:文件消息， 8:音频消息，9:KMarkdown，10:card消息，255:系统消息, 其它的暂未开放
+    type_: int = Field(alias="type")
+    """1:文字消息\n2:图片消息\n3:视频消息\n4:文件消息\n8:音频消息\n9:KMarkdown\n10:card消息\n255:系统消息\n其它的暂未开放"""
     target_id: str
+    """
+    发送目的\n
+    频道消息类时, 代表的是频道 channel_id\n
+    如果 channel_type 为 GROUP 组播且 type 为 255 系统消息时，则代表服务器 guild_id"""
     author_id: str = None
     content: str
     msg_id: str
@@ -377,7 +310,6 @@ class ChannelMessageEvent(MessageEvent):
                     self.event.content,
                 )
             )
-            + '"'
         )
 
     @overrides(MessageEvent)
@@ -422,6 +354,7 @@ class ChannelAddReactionEvent(ChannelNoticeEvent):
             f'Notice {self.message_id} from {self.extra.body.user_id}@[服务器:{self.target_id}][频道:{self.extra.body.channel_id}] '
             + f'add Emoji "{self.extra.body.emoji.name}" ' + ''
             + f'to {self.extra.body.msg_id}'
+            + '"'
         )
 
 class ChannelDeletedReactionEvent(ChannelNoticeEvent):

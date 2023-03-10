@@ -1,11 +1,14 @@
 import re
 from os import PathLike
+from io import BytesIO, BufferedReader
+from pathlib import Path
 from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable, Tuple, Sequence
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
 from nonebot.typing import overrides
 
+from .api import ApiClient
 from .event import Event, MessageEvent
 from .message import Message, MessageSegment, MessageSerializer
 from .utils import log
@@ -52,6 +55,7 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
                 raw_content = raw_content[:-len(raw_met_str)].rstrip()
             event.message[0].data["content"] = content
             event.message[0].data["raw_content"] = raw_content
+            event.message[0].data["is_plain_text"] = True
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):
@@ -121,7 +125,7 @@ async def send(
     return await bot.send_msg(**params)
 
 
-class Bot(BaseBot):
+class Bot(BaseBot, ApiClient):
     """
     Kaiheila Bot 适配。
     """
@@ -327,8 +331,7 @@ class Bot(BaseBot):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes,
-                                            Tuple[str, Union[str, PathLike[str], BinaryIO, bytes], str]],
+    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes],
                           filename: Optional[str] = None) -> str:
         """
         上传文件。
@@ -340,9 +343,15 @@ class Bot(BaseBot):
         返回值:
             文件的 URL
         """
+        if isinstance(file, BytesIO):
+            file = file.getvalue()
+        elif isinstance(file, BufferedReader):
+            file = file.read()
+        elif isinstance(file, str) or isinstance(file, Path):
+            with open(file, "rb") as img:
+                file = img.read()
         # 旧版本API是直接把三元组传参到file，这里处理兼容性
         # 经过测试，服务器会用从文件读取到的mime覆盖掉我们传过去的mime
-        if not isinstance(file, Sequence) or len(file) != 3:
-            file = (filename or "upload-file", file, "application/octet-stream")
-        result = await self.call_api("asset/create", file=file)
-        return result.get("url")
+        file = (filename or "upload-file", file, "application/octet-stream")
+        result = await self.asset_create(file=file)
+        return result.url
