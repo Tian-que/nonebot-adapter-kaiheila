@@ -24,7 +24,7 @@ from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .exception import NetworkError, ApiNotAvailable, ReconnectError, TokenError
+from .exception import ApiNotAvailable, ReconnectError, TokenError
 from .message import Message, MessageSegment
 from .utils import ResultStore, log, _handle_api_result
 
@@ -86,7 +86,7 @@ class Adapter(BaseAdapter):
             api = api.strip("/")
             log("DEBUG", f"Calling API <y>{api}</y>")
             return await api_handler(self,bot,api,**data)
-        
+
         else:
             raise ApiNotAvailable
 

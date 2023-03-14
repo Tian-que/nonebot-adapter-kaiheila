@@ -350,7 +350,6 @@ class Bot(BaseBot, ApiClient):
         elif isinstance(file, str) or isinstance(file, Path):
             with open(file, "rb") as img:
                 file = img.read()
-        # 旧版本API是直接把三元组传参到file，这里处理兼容性
         # 经过测试，服务器会用从文件读取到的mime覆盖掉我们传过去的mime
         file = (filename or "upload-file", file, "application/octet-stream")
         result = await self.asset_create(file=file)

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nonebot-adapter-kaiheila"
-version = "0.0.6"
+version = "0.1.0"
 description = "kaiheila adapter for nonebot2"
 authors = ["Tian-que <1605206150@qq.com>"]
 license = "MIT"
@@ -13,15 +13,15 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7.3"
-nonebot2 = "^2.0.0-beta.1"
+python = "^3.9"
 aiohttp = "^3.8.1"
 deprecated = "^1.2.13"
+nonebot2 = "^2.0.0rc1"
 
-# [[tool.poetry.source]]
-# name = "aliyun"
-# url = "https://mirrors.aliyun.com/pypi/simple/"
-# default = true
+#[[tool.poetry.source]]
+#name = "aliyun"
+#url = "https://mirrors.aliyun.com/pypi/simple/"
+#default = true
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"
