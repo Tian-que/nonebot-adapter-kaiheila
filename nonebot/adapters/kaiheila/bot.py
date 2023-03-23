@@ -1,8 +1,8 @@
 import re
-from os import PathLike
 from io import BytesIO, BufferedReader
+from os import PathLike
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable, Tuple, Sequence
+from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event

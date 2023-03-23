@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast
+from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast, Optional
 
 from deprecated import deprecated
-from nonebot.adapters import Message as BaseMessage
-from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
 
+from nonebot.adapters import Message as BaseMessage
+from nonebot.adapters import MessageSegment as BaseMessageSegment
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation
 from .utils import unescape_kmarkdown
 
@@ -111,14 +111,14 @@ class MessageSegment(BaseMessageSegment["Message"]):
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
         if self.type == "kmarkdown":
-            return self.data["is_plain_text"]
+            return self.data["raw_content"] == self.data["content"]
         else:
             return self.type == "text"
 
     @staticmethod
     @deprecated("用 KMarkdown 语法 (met)用户id/here/all(met) 代替")
     def at(user_id: str) -> "MessageSegment":
-        return MessageSegment("at", {"user_id": user_id})
+        return MessageSegment.KMarkdown(f"(met){user_id}(met)", user_id)
 
     @staticmethod
     def text(text: str) -> "MessageSegment":
@@ -148,23 +148,28 @@ class MessageSegment(BaseMessageSegment["Message"]):
         })
 
     @staticmethod
-    def KMarkdown(content: str, raw_content: str) -> "MessageSegment":
-        # 去除转义字符
-        unescaped = unescape_kmarkdown(content)
-        is_plain_text = unescaped.strip() == raw_content
+    def KMarkdown(content: str, raw_content: Optional[str] = None) -> "MessageSegment":
+        """
+        构造KMarkdown消息段
 
-        # raw_content默认strip掉首尾空格，这里还原了（遵循开黑啦本体的行为）
-        if is_plain_text:
-            raw_content = unescaped
+        @param content: KMarkdown消息内容（语法参考：https://developer.kookapp.cn/doc/kmarkdown）
+        @param raw_content: （可选）消息段的纯文本内容
+        """
+        if raw_content is None:
+            raw_content = ""
 
         return MessageSegment("kmarkdown", {
             "content": content,
-            "raw_content": raw_content,
-            "is_plain_text": is_plain_text,
+            "raw_content": raw_content
         })
 
     @staticmethod
     def Card(content: str) -> "MessageSegment":
+        """
+        构造卡片消息
+
+        @param content: KMarkdown消息内容（语法参考：https://developer.kookapp.cn/doc/cardmessage）
+        """
         return MessageSegment("card", {
             "content": content
         })
@@ -206,7 +211,6 @@ class Message(BaseMessage[MessageSegment]):
             cur = self[index]
             if prev.type == "text" and cur.type == "text" \
                     or prev.type == "kmarkdown" and cur.type == "kmarkdown":
-                # 重新构造MessageSegment，确保lazy字段更新
                 self[index - 1] = MessageSegment(prev.type, {
                     "content": prev.data["content"] + cur.data["content"]
                 })
@@ -265,13 +269,21 @@ class MessageDeserializer:
         elif self.type == "file":
             return Message(MessageSegment.file(self.data["attachments"]["url"]))
         elif self.type == "kmarkdown":
-            msg_seg = MessageSegment.KMarkdown(self.data["content"], self.data["kmarkdown"]["raw_content"])
+            content = self.data["content"]
+            raw_content = self.data["kmarkdown"]["raw_content"]
+
+            # raw_content默认strip掉首尾空格，但是开黑啦本体的聊天界面中不会strip，所以这里还原了
+            unescaped = unescape_kmarkdown(content)
+            is_plain_text = unescaped.strip() == raw_content
+            if is_plain_text:
+                raw_content = unescaped
+
             # 如果是KMarkdown消息是纯文本，直接构造纯文本消息
             # 目的是让on_command等依赖__str__的规则能够在消息存在转义字符时正常工作
-            if msg_seg.data["is_plain_text"]:
-                return Message(MessageSegment.text(msg_seg.data["raw_content"]))
+            if is_plain_text:
+                return Message(MessageSegment.text(raw_content))
             else:
-                return Message(msg_seg)
+                return Message(MessageSegment.KMarkdown(content, raw_content))
         elif self.type == "card":
             return Message(MessageSegment.Card(self.data["content"]))
         else:
