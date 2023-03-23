@@ -2,12 +2,12 @@ from dataclasses import dataclass
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast, Optional
 
 from deprecated import deprecated
-from nonebot.typing import overrides
-
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
+from nonebot.typing import overrides
+
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation
-from .utils import unescape_kmarkdown
+from .utils import unescape_kmarkdown, escape_kmarkdown
 
 msg_type_map = {
     "text": 1,
@@ -58,7 +58,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
         elif self.type == "at":
             return str(f"@{self.data['user_name']}")
         else:
-            return segment_text.get(msg_type_map.get(self.type, ""), "[未知类型消息]")
+            return segment_text.get(self.type, "[未知类型消息]")
 
     @property
     def plain_text(self):
@@ -79,34 +79,20 @@ class MessageSegment(BaseMessageSegment["Message"]):
             other = MessageSegment(self.type, {"content": other})
         return Message(other.conduct(self))
 
-    def _conduct_single(self, other: "MessageSegment") -> "MessageSegment":
-        if self.type == "text":
-            return MessageSegment("text", {"content": self.data["content"] + other.data["content"]})
-        elif self.type == "kmarkdown":
-            return MessageSegment("kmarkdown", {"content": self.data["content"] + other.data["content"],
-                                                "raw_content": self.data["raw_content"] + other.data["raw_content"]})
-        else:
-            raise UnsupportedMessageOperation()
-
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
         """
-        连接两个或多个 MessageSegment，必须同时为 text 或 KMarkdown
+        连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
         """
-        if self.type != "text" and self.type != "kmarkdown":
-            raise UnsupportedMessageOperation()
 
-        if isinstance(other, str):
-            other = [MessageSegment.text(other)]
-        elif isinstance(other, MessageSegment):
+        if isinstance(other, str) or isinstance(other, MessageSegment):
             other = [other]
+        msg = Message([self, *other])
+        msg.reduce()
 
-        seg = self
-        for o in other:
-            if o.type == seg.type:
-                seg = self._conduct_single(o)
-            else:
-                raise UnsupportedMessageOperation()
-        return seg
+        if len(msg) != 1:
+            raise UnsupportedMessageOperation("必须为纯文本段或 KMarkdown 段")
+        else:
+            return msg[0]
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
@@ -215,10 +201,27 @@ class Message(BaseMessage[MessageSegment]):
         while index < len(self):
             prev = self[index - 1]
             cur = self[index]
-            if prev.type == "text" and cur.type == "text" \
-                    or prev.type == "kmarkdown" and cur.type == "kmarkdown":
+            if prev.type == "text" and cur.type == "text":
                 self[index - 1] = MessageSegment(prev.type, {
                     "content": prev.data["content"] + cur.data["content"]
+                })
+                del self[index]
+            elif prev.type == "kmarkdown" and cur.type == "kmarkdown":
+                self[index - 1] = MessageSegment(prev.type, {
+                    "content": prev.data["content"] + cur.data["content"],
+                    "raw_content": prev.data["raw_content"] + cur.data["raw_content"],
+                })
+                del self[index]
+            elif prev.type == "kmarkdown" and cur.type == "text":
+                self[index - 1] = MessageSegment(prev.type, {
+                    "content": prev.data["content"] + escape_kmarkdown(cur.data["content"]),
+                    "raw_content": prev.data["raw_content"] + cur.data["content"],
+                })
+                del self[index]
+            elif prev.type == "text" and cur.type == "kmarkdown":
+                self[index - 1] = MessageSegment(prev.type, {
+                    "content": escape_kmarkdown(prev.data["content"]) + cur.data["content"],
+                    "raw_content": prev.data["content"] + cur.data["raw_content"],
                 })
                 del self[index]
             else:
@@ -238,7 +241,7 @@ class MessageSerializer:
             self.message.reduce()
 
             if len(self.message) != 1:
-                raise UnsupportedMessageOperation()
+                raise UnsupportedMessageOperation("图片/视频/文件/卡片消息必须单独发送")
 
         msg_type = self.message[0].type
         msg_type_code = msg_type_map[msg_type]
@@ -248,8 +251,11 @@ class MessageSerializer:
             return msg_type_code, self.message[0].data['content']
         elif msg_type in ("image", "video", "file"):
             return msg_type_code, self.message[0].data['file_key']
-        elif msg_type == "audio" and not for_send:
-            return msg_type_code, self.message[0].data['file_key']
+        elif msg_type == "audio":
+            if not for_send:
+                return msg_type_code, self.message[0].data['file_key']
+            else:
+                raise UnsupportedMessageType("音频消息不支持发送")
         else:
             raise UnsupportedMessageType()
 

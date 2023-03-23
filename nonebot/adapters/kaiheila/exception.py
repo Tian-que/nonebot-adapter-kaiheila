@@ -52,12 +52,14 @@ class ActionFailed(BaseActionFailed, KaiheilaAdapterException):
         self.message = body.get("message", None)
         self.data = body.get("data", None)
 
+
 class UnauthorizedException(ActionFailed):
     pass
 
 
 class RateLimitException(ActionFailed):
     pass
+
 
 class NetworkError(BaseNetworkError, KaiheilaAdapterException):
     """
@@ -89,9 +91,15 @@ class UnsupportedMessageType(KaiheilaAdapterException):
     """
     :说明:
 
-      在发送不支持的消息类型时抛出，开黑啦 Bot 仅支持发送以下三种消息类型: "text"、"KMarkdown" 和 "Card", 尝试发送其他类型时抛出此异常。
+      在发送不支持的消息类型时抛出，开黑啦 Bot 不支持发送音频消息。
     """
-    pass
+
+    def __init__(self, message: str = ""):
+        super().__init__()
+        self.message = message
+
+    def __repr__(self) -> str:
+        return self.message
 
 
 class UnsupportedMessageOperation(KaiheilaAdapterException):
@@ -100,7 +108,13 @@ class UnsupportedMessageOperation(KaiheilaAdapterException):
 
       在调用不支持的 Message 或 MessageSegment 操作时抛出，例如对图片类型的 MessageSegment 使用加运算。
     """
-    pass
+
+    def __init__(self, message: str = ""):
+        super().__init__()
+        self.message = message
+
+    def __repr__(self) -> str:
+        return self.message
 
 
 class ReconnectError(KaiheilaAdapterException):
