@@ -174,6 +174,12 @@ class MessageSegment(BaseMessageSegment["Message"]):
             "content": content
         })
 
+    @staticmethod
+    def quote(msg_id: str) -> "MessageSegment":
+        return MessageSegment("quote", {
+            "msg_id": msg_id
+        })
+
 
 class Message(BaseMessage[MessageSegment]):
     """
@@ -226,7 +232,7 @@ class MessageSerializer:
     """
     message: Message
 
-    async def serialize(self, for_send: bool = True) -> Tuple[int, str]:
+    def serialize(self, for_send: bool = True) -> Tuple[int, str]:
         if len(self.message) != 1:
             self.message = self.message.copy()
             self.message.reduce()

@@ -294,9 +294,18 @@ class Bot(BaseBot, ApiClient):
 
         # type & content
         if isinstance(message, Message):
-            params["type"], params["content"] = await MessageSerializer(message).serialize()
+            new_message = Message()
+            # 提取message中的quote消息段
+            for seg in message:
+                if seg.type == 'quote':
+                    if not quote:
+                        quote = seg.data["msg_id"]
+                else:
+                    new_message.append(seg)
+
+            params["type"], params["content"] = MessageSerializer(new_message).serialize()
         elif isinstance(message, MessageSegment):
-            params["type"], params["content"] = await MessageSerializer(Message(message)).serialize()
+            params["type"], params["content"] = MessageSerializer(Message(message)).serialize()
         else:
             params["type"], params["content"] = 1, message
 
