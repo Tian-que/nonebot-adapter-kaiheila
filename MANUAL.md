@@ -73,22 +73,10 @@ nonebot.run()
 
 ## 调用 API
 
-通过`bot.call_api(api, **data)`方法，你可以调用开黑啦的所有API。
+（感谢 @DogAddan 的贡献）
 
-如果是POST接口，直接将参数以具名参数的形式传入。
+通过调用bot实例方法的形式可以调用开黑啦的所有API。
 
-```python
-result = await bot.call_api("user-chat/delete", chat_code=chat_code)
-```
-
-如果是GET接口，请将查询参数以字典形式放入参数query中。
-
-```python
-result = await bot.call_api("user/view", query={"user_id": user_id})
-```
+你可以在[KOOK 开发者平台](https://developer.kaiheila.cn/doc/intro)查看所有的API。API对应方法名参见[源码文件](https://github.com/Tian-que/nonebot-adapter-kaiheila/blob/master/nonebot/adapters/kaiheila/api/client.pyi)。
 
 对于`POST asset/create`接口（上传文件/图片），你还可以直接调用`bot.upload_file(file)`方法。
-
-你无需指明一个接口是GET方法还是POST方法，适配器会帮你自动找到接口的方法。
-
-你可以在[KOOK 开发者平台](https://developer.kaiheila.cn/doc/intro)查看所有的API。
