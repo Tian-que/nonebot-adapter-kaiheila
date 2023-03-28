@@ -1,15 +1,4 @@
-from typing import TYPE_CHECKING
-
-from nonebot.drivers import Request
-from pydantic import parse_obj_as
-
 from .model import *
-from .request import _request
-from ..utils import _handle_api_result
-
-if TYPE_CHECKING:
-    from nonebot.adapters.kaiheila.bot import Bot
-    from nonebot.adapters.kaiheila.adapter import Adapter
 
 api_method_map = {
     'asset/create': {'method': 'POST', 'type': URL},
@@ -83,45 +72,3 @@ def get_api_method(api: str) -> str:
 
 def get_api_restype(api: str) -> Any:
     return api_method_map.get(api, {}).get("type")
-
-
-async def api_handler(adapter: "Adapter", bot: "Bot", api: str, **data) -> Any:
-    # 判断 POST 或 GET
-    method = get_api_method(api) if not data.get("method") else data.get("method")
-
-    headers = data.get("headers", {})
-
-    files = None
-    query = None
-    body = None
-
-    if "files" in data:
-        files = data["files"]
-        del data["files"]
-    elif "file" in data:  # 目前只有asset/create接口需要上传文件（大概）
-        files = {"file": data["file"]}
-        del data["file"]
-
-    if method == "GET":
-        query = data
-    elif method == "POST":
-        body = data
-
-    if bot.token is not None:
-        headers["Authorization"] = f"Bot {bot.token}"
-
-    request = Request(
-        method,
-        adapter.api_root + api,
-        headers=headers,
-        params=query,
-        data=body,
-        files=files,
-        timeout=adapter.config.api_timeout,
-    )
-    result_type = get_api_restype(api)
-    try:
-        result = _handle_api_result(await _request(adapter, bot, request))
-        return parse_obj_as(result_type, result) if result_type else None
-    except Exception as e:
-        raise e

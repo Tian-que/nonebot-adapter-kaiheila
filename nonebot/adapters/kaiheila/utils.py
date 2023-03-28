@@ -1,10 +1,12 @@
 import asyncio
+import json
 from io import StringIO
 from typing import Any, Dict, Tuple, Optional
+
+from nonebot.internal.driver import Response
 from nonebot.utils import logger_wrapper
 
 from .exception import ActionFailed
-
 
 log = logger_wrapper("Kaiheila")
 
@@ -14,7 +16,7 @@ def _b2s(b: Optional[bool]) -> Optional[str]:
     return b if b is None else str(b).lower()
 
 
-def code_to_emoji(emoji: str) -> str:
+def code_to_emoji(emoji: str) -> bytes:
     return emoji.encode("unicode_escape")
 
 
@@ -41,8 +43,8 @@ def unescape_kmarkdown(content: str):
         i = 0
         while i < len(content):
             if content[i] == '\\':
-                if i+1 < len(content) and content[i+1] in ESCAPE_CHAR:
-                    f.write(content[i+1])
+                if i + 1 < len(content) and content[i + 1] in ESCAPE_CHAR:
+                    f.write(content[i + 1])
                     i += 2
                     continue
 
@@ -51,7 +53,7 @@ def unescape_kmarkdown(content: str):
         return f.getvalue()
 
 
-def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
+def _handle_api_result(response: Response) -> Any:
     """
     :说明:
 
@@ -59,7 +61,7 @@ def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
 
     :参数:
 
-      * ``result: Optional[Dict[str, Any]]``: API 返回数据
+      * ``response: Response``: API 响应体
 
     :返回:
 
@@ -69,10 +71,11 @@ def _handle_api_result(result: Optional[Dict[str, Any]]) -> Any:
 
         - ``ActionFailed``: API 调用失败
     """
+    result = json.loads(response.content)
     if isinstance(result, dict):
-        log("DEBUG", "API result "+str(result))
+        log("DEBUG", "API result " + str(result))
         if result.get("code") != 0:
-            raise ActionFailed(**result)
+            raise ActionFailed(response)
         else:
             return result.get("data")
 

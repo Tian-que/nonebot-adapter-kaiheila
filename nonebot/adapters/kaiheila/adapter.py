@@ -1,11 +1,10 @@
-import re
 import asyncio
 import inspect
 import json
+import re
 import zlib
-from typing import Any, Dict, List, Type, Union, Callable, Optional
+from typing import Any, Dict, List, Type, Union, Callable, Optional, Mapping
 
-import aiohttp
 from nonebot.adapters import Adapter as BaseAdapter
 from nonebot.drivers import (
     URL,
@@ -14,17 +13,20 @@ from nonebot.drivers import (
     WebSocket,
     ForwardDriver,
 )
+from nonebot.internal.driver import Response
 from nonebot.typing import overrides
 from nonebot.utils import escape_tag
+from pydantic import parse_obj_as
 from pygtrie import StringTrie
 
 from . import event
-from .api import api_handler
+from .api.handle import get_api_method, get_api_restype
 from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .exception import ApiNotAvailable, ReconnectError, TokenError
+from .exception import ApiNotAvailable, ReconnectError, TokenError, UnauthorizedException, RateLimitException, \
+    ActionFailed, KaiheilaAdapterException, NetworkError
 from .message import Message, MessageSegment
 from .utils import ResultStore, log, _handle_api_result
 
@@ -68,6 +70,27 @@ class Adapter(BaseAdapter):
             self.driver.on_bot_connect(self.start_heartbeat)
 
     @overrides(BaseAdapter)
+    async def request(self, setup: Request) -> Response:
+        try:
+            response = await super().request(setup)
+            if 200 <= response.status_code < 300:
+                if not response.content:
+                    raise ValueError("Empty response")
+                return response
+            elif response.status_code == 403:
+                raise UnauthorizedException(response)
+            elif response.status_code in (404, 405):
+                raise ApiNotAvailable
+            elif response.status_code == 429:
+                raise RateLimitException(response)
+            else:
+                raise ActionFailed(response)
+        except KaiheilaAdapterException:
+            raise
+        except Exception as e:
+            raise NetworkError("API request failed") from e
+
+    @overrides(BaseAdapter)
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
         if isinstance(self.driver, ForwardDriver):
             if not self.api_root:
@@ -76,54 +99,79 @@ class Adapter(BaseAdapter):
             match = re.findall(r'[A-Z]', api)
             if len(match) > 0:
                 for m in match:
-                    api = api.replace(m, "-"+m.lower())
-            api = api.replace("_","/")
+                    api = api.replace(m, "-" + m.lower())
+            api = api.replace("_", "/")
 
             if api.startswith("/api/v3/"):
                 api = api[len("/api/v3/"):]
             elif api.startswith("api/v3"):
                 api = api[len("api/v3"):]
             api = api.strip("/")
-            log("DEBUG", f"Calling API <y>{api}</y>")
-            return await api_handler(self,bot,api,**data)
+            return await self._do_call_api(api, data, bot.token)
 
         else:
             raise ApiNotAvailable
 
-    async def get_bot_info(self, token) -> Dict:
-        headers = {
-            'Authorization': f'Bot {token}',
-            'Content-type': 'application/json'
-        }
+    async def _do_call_api(self, api: str,
+                           data: Optional[Mapping[str, Any]] = None,
+                           token: Optional[str] = None) -> Any:
+        log("DEBUG", f"Calling API <y>{api}</y>")
+        data = dict(data) if data is not None else dict()
+
+        # 判断 POST 或 GET
+        method = get_api_method(api) if not data.get("method") else data.get("method")
+
+        headers = data.get("headers", {})
+
+        files = None
+        query = None
+        body = None
+
+        if "files" in data:
+            files = data["files"]
+            del data["files"]
+        elif "file" in data:  # 目前只有asset/create接口需要上传文件（大概）
+            files = {"file": data["file"]}
+            del data["file"]
+
+        if method == "GET":
+            query = data
+        elif method == "POST":
+            body = data
+
+        if token is not None:
+            headers["Authorization"] = f"Bot {token}"
+
         request = Request(
-            "GET",
-            self.api_root + 'user/me',
+            method,
+            self.api_root + api,
             headers=headers,
+            params=query,
+            data=body,
+            files=files,
             timeout=self.config.api_timeout,
         )
-        response = await self.driver.request(request)
-        return json.loads(response.content)
+        result_type = get_api_restype(api)
+        try:
+            resp = await self.request(request)
+            result = _handle_api_result(resp)
+            return parse_obj_as(result_type, result) if result_type else None
+        except Exception as e:
+            raise e
 
-    async def _get_gateway(self, token: str) -> str:
-        headers = {
-            'Authorization': f'Bot {token}',
-            'Content-type': 'application/json'
-        }
+    async def _get_bot_info(self, token: str) -> User:
+        return await self._do_call_api("user/me", token=token)
 
-        params = {'compress': 1 if self.kaiheila_config.compress else 0}
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.api_root}gateway/index",
-                                   headers=headers,
-                                   params=params) as resp:
-                result = await resp.json()
-
-        return _handle_api_result(result)["url"]
+    async def _get_gateway(self, token: str) -> URL:
+        result = await self._do_call_api("gateway/index",
+                                         data={'compress': 1 if self.kaiheila_config.compress else 0},
+                                         token=token)
+        return result.url
 
     async def start_forward(self) -> None:
         for bot in self.kaiheila_config.kaiheila_bots:
+            bot_token = bot.token
             try:
-                bot_token = bot.token
                 url = await self._get_gateway(bot_token)
                 ws_url = URL(url)
                 self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot_token)))
@@ -181,15 +229,15 @@ class Adapter(BaseAdapter):
                                         or event.sub_type != "connect"
                                 ):
                                     continue
-                                bot_info = await self.get_bot_info(bot_token)
-                                self_id = bot_info['data']['id']
-                                bot = Bot(self, str(self_id), bot_info['data']['username'], bot_token)
-                                self.connections[str(self_id)] = ws
+                                bot_info = await self._get_bot_info(bot_token)
+                                self_id = bot_info.id_
+                                bot = Bot(self, self_id, bot_info.username, bot_token)
+                                self.connections[self_id] = ws
                                 self.bot_connect(bot)
 
                                 log(
                                     "INFO",
-                                    f"<y>Bot {escape_tag(str(self_id))}</y> connected",
+                                    f"<y>Bot {escape_tag(self_id)}</y> connected",
                                 )
                             asyncio.create_task(bot.handle_event(event))
                     except ReconnectError as e:
@@ -331,7 +379,7 @@ class Adapter(BaseAdapter):
                     log("DEBUG", "Event Parser Error", e)
             else:
                 event = Event.parse_obj(json_data)
-            log("DEBUG",str(event.dict()))
+            log("DEBUG", str(event.dict()))
             return event
         except Exception as e:
             log(
