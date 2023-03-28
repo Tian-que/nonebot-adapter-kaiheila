@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast, Optional
 
@@ -115,22 +116,29 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return MessageSegment("image", {"file_key": file_key})
 
     @staticmethod
-    def video(file_key: str) -> "MessageSegment":
+    def video(file_key: str,
+              title: Optional[str] = None) -> "MessageSegment":
         return MessageSegment("video", {
             "file_key": file_key,
+            "title": title,
         })
 
     @staticmethod
-    def file(file_key: str) -> "MessageSegment":
+    def file(file_key: str,
+             title: Optional[str] = None) -> "MessageSegment":
         return MessageSegment("file", {
-            "file_key": file_key
+            "file_key": file_key,
+            "title": title,
         })
 
     @staticmethod
-    def audio(file_key: str, duration: int) -> "MessageSegment":
+    def audio(file_key: str,
+              title: Optional[str] = None,
+              cover_file_key: Optional[str] = None) -> "MessageSegment":
         return MessageSegment("audio", {
             "file_key": file_key,
-            "duration": duration
+            "title": title,
+            "cover_file_key": cover_file_key
         })
 
     @staticmethod
@@ -150,12 +158,15 @@ class MessageSegment(BaseMessageSegment["Message"]):
         })
 
     @staticmethod
-    def Card(content: str) -> "MessageSegment":
+    def Card(content: Any) -> "MessageSegment":
         """
         构造卡片消息
 
         @param content: KMarkdown消息内容（语法参考：https://developer.kookapp.cn/doc/cardmessage）
         """
+        if not isinstance(content, str):
+            content = json.dumps(content)
+
         return MessageSegment("card", {
             "content": content
         })
@@ -228,6 +239,56 @@ class Message(BaseMessage[MessageSegment]):
                 index += 1
 
 
+def _convert_to_card_message(msg: Message) -> MessageSegment:
+    cards = []
+    modules = []
+
+    for seg in msg:
+        if seg.type == 'card':
+            if len(modules) != 0:
+                cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
+                modules = []
+            cards.extend(json.loads(seg.data['content']))
+        elif seg.type == "text":
+            modules.append(
+                {
+                    "type": "section",
+                    "text": {"type": "plain-text", "content": seg.data["content"]},
+                }
+            )
+        elif seg.type == "kmarkdown":
+            modules.append(
+                {
+                    "type": "section",
+                    "text": {"type": "kmarkdown", "content": seg.data["content"]},
+                }
+            )
+        elif seg.type == "image":
+            modules.append(
+                {
+                    "type": "container",
+                    "elements": [{"type": "image", "src": seg.data["file_key"]}],
+                }
+            )
+        elif seg.type in ("audio", "video", "file"):
+            mod = {
+                "type": seg.type,
+                "src": seg.data["file_key"],
+            }
+            if seg.data.get("title") is not None:
+                mod["title"] = seg.data["title"]
+            if seg.data.get("cover_file_key") is not None:
+                mod["cover"] = seg.data["cover_file_key"]
+            modules.append(mod)
+        else:
+            raise UnsupportedMessageType(seg.type)
+
+    if len(modules) != 0:
+        cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
+
+    return MessageSegment.Card(cards)
+
+
 @dataclass
 class MessageSerializer:
     """
@@ -241,7 +302,8 @@ class MessageSerializer:
             self.message.reduce()
 
             if len(self.message) != 1:
-                raise UnsupportedMessageOperation("图片/视频/文件/卡片消息必须单独发送")
+                # 转化为卡片消息发送
+                return MessageSerializer(Message(_convert_to_card_message(self.message))).serialize()
 
         msg_type = self.message[0].type
         msg_type_code = msg_type_map[msg_type]
@@ -255,9 +317,10 @@ class MessageSerializer:
             if not for_send:
                 return msg_type_code, self.message[0].data['file_key']
             else:
-                raise UnsupportedMessageType("音频消息不支持发送")
+                # 转化为卡片消息发送
+                return MessageSerializer(Message(_convert_to_card_message(self.message))).serialize()
         else:
-            raise UnsupportedMessageType()
+            raise UnsupportedMessageType(msg_type)
 
 
 @dataclass
