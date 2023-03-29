@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections import UserDict
 from io import StringIO
 from typing import Any, Dict, Tuple, Optional
 
@@ -92,3 +93,11 @@ class ResultStore:
     @classmethod
     def get_sn(cls, self_id: str) -> int:
         return cls._sn_map.get(self_id, 0)
+
+
+class AttrDict(UserDict):
+    def __init__(self, initial=None):
+        super().__init__(initial)
+
+    def __getattr__(self, name):
+        return self['name']
