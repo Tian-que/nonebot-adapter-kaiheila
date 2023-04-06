@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional, Union
 
 from pydantic import BaseModel, Field
 
+
 class User(BaseModel):
     """
     开黑啦 User 字段
@@ -37,6 +38,7 @@ class User(BaseModel):
     active_time: Optional[int] = None
     """上次在线时间"""
 
+
 class Role(BaseModel):
     """角色"""
     role_id: Optional[int] = None
@@ -54,15 +56,18 @@ class Role(BaseModel):
     permissions: Optional[int] = None
     """权限码"""
 
+
 class PermissionOverwrite(BaseModel):
     role_id: Optional[int] = None
     allow: Optional[int] = None
     deny: Optional[int] = None
 
+
 class PermissionUser(BaseModel):
     user: Optional[User] = None
     allow: Optional[int] = None
     deny: Optional[int] = None
+
 
 class ChannelRoleInfo(BaseModel):
     """频道角色权限详情"""
@@ -72,6 +77,7 @@ class ChannelRoleInfo(BaseModel):
     """针对用户在该频道的权限覆写规则组成的列表"""
     permission_sync: Optional[int] = None
     """权限设置是否与分组同步, 1 or 0"""
+
 
 class Channel(ChannelRoleInfo):
     """开黑啦 频道 字段"""
@@ -102,9 +108,10 @@ class Channel(ChannelRoleInfo):
     limit_amount: Optional[int] = None
     """人数限制"""
 
+
 class Guild(BaseModel):
     """服务器"""
-    _id: Optional[str] = Field(None, alias="id")
+    id_: Optional[str] = Field(None, alias="id")
     """服务器 id"""
     name: Optional[str] = None
     """服务器名称"""
@@ -136,9 +143,10 @@ class Guild(BaseModel):
     channels: Optional[List[Channel]] = None
     """频道列表"""
 
+
 class Quote(BaseModel):
     """引用消息"""
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     """引用消息 id"""
     type: Optional[int] = None
     """引用消息类型"""
@@ -148,6 +156,7 @@ class Quote(BaseModel):
     """引用消息创建时间（毫秒）"""
     author: Optional[User] = None
     """作者的用户信息"""
+
 
 class Attachments(BaseModel):
     """附加的多媒体数据"""
@@ -160,8 +169,9 @@ class Attachments(BaseModel):
     size: Optional[int] = None
     """大小 单位（B）"""
 
+
 class Emoji(BaseModel):
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     name: Optional[str] = None
 
     # 转义 unicdoe 为 emoji表情
@@ -171,9 +181,11 @@ class Emoji(BaseModel):
     #     values['name'] = chr(int(values['name'][2:-2]))
     #     return values
 
+
 class URL(BaseModel):
     url: Optional[str] = None
     """资源的 url"""
+
 
 class Meta(BaseModel):
     page: Optional[int] = None
@@ -181,9 +193,11 @@ class Meta(BaseModel):
     page_size: Optional[int] = None
     total: Optional[int] = None
 
+
 class ListReturn(BaseModel):
     meta: Optional[Meta] = None
     sort: Optional[Dict[str, Any]] = None
+
 
 class BlackList(BaseModel):
     """黑名单"""
@@ -196,10 +210,12 @@ class BlackList(BaseModel):
     user: Optional[User] = None
     """用户"""
 
+
 class BlackListsReturn(ListReturn):
     """获取黑名单列表返回信息"""
-    blacklists: Optional[List[BlackList]] = Field(None,alias="items")
+    blacklists: Optional[List[BlackList]] = Field(None, alias="items")
     """黑名单列表"""
+
 
 class MessageCreateReturn(BaseModel):
     """发送频道消息返回信息"""
@@ -210,6 +226,7 @@ class MessageCreateReturn(BaseModel):
     nonce: Optional[str] = None
     """随机字符串"""
 
+
 class ChannelRoleReturn(BaseModel):
     """创建或更新频道角色权限返回信息"""
     role_id: Optional[int] = None
@@ -217,15 +234,18 @@ class ChannelRoleReturn(BaseModel):
     allow: Optional[int] = None
     deny: Optional[int] = None
 
+
 class GuildsReturn(ListReturn):
-    guilds: Optional[List[Guild]] = Field(None,alias="items")
+    guilds: Optional[List[Guild]] = Field(None, alias="items")
+
 
 class ChannelsReturn(ListReturn):
-    channels: Optional[List[Channel]] = Field(None,alias="items")
+    channels: Optional[List[Channel]] = Field(None, alias="items")
+
 
 class GuildUsersRetrun(ListReturn):
     """服务器中的用户列表"""
-    users: Optional[List[User]] = Field(None,alias="items")
+    users: Optional[List[User]] = Field(None, alias="items")
     """用户列表"""
     user_count: Optional[int] = None
     """用户数量"""
@@ -233,11 +253,13 @@ class GuildUsersRetrun(ListReturn):
     """在线用户数量"""
     offline_count: Optional[int] = None
     """离线用户数量"""
-    
+
+
 class Reaction(BaseModel):
     emoji: Optional[Emoji] = None
     count: Optional[int] = None
     me: Optional[bool] = None
+
 
 class MentionInfo(BaseModel):
     mention_part: Optional[List[dict]] = None
@@ -245,8 +267,9 @@ class MentionInfo(BaseModel):
     channel_part: Optional[List[dict]] = None
     item_part: Optional[List[dict]] = None
 
+
 class BaseMessage(BaseModel):
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     """消息 ID"""
     type: Optional[int] = None
     """消息类型"""
@@ -271,6 +294,7 @@ class BaseMessage(BaseModel):
     mention_info: Optional[MentionInfo] = None
     """引用特定用户或特定角色的信息"""
 
+
 class ChannelMessage(BaseMessage):
     """频道消息"""
     author: Optional[User] = None
@@ -278,6 +302,7 @@ class ChannelMessage(BaseMessage):
     mention_all: Optional[bool] = None
     mention_roles: Optional[List[Any]] = None
     mention_here: Optional[bool] = None
+
 
 class DirectMessage(BaseMessage):
     """私聊消息"""
@@ -288,20 +313,24 @@ class DirectMessage(BaseMessage):
     msg_icon: Optional[str] = None
     """msg_icon"""
 
+
 class ChannelMessagesReturn(BaseModel):
     """获取私信聊天消息列表返回信息"""
-    direct_messages: Optional[List[ChannelMessage]] = Field(None,alias="items")
+    direct_messages: Optional[List[ChannelMessage]] = Field(None, alias="items")
+
 
 class DirectMessagesReturn(BaseModel):
     """获取私信聊天消息列表返回信息"""
-    direct_messages: Optional[List[DirectMessage]] = Field(None,alias="items")
+    direct_messages: Optional[List[DirectMessage]] = Field(None, alias="items")
+
 
 class ReactionUser(User):
     reaction_time: Optional[int] = None
 
+
 class TargetInfo(BaseModel):
     """私聊会话 目标用户信息"""
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     """目标用户 ID"""
     username: Optional[str] = None
     """目标用户名"""
@@ -309,6 +338,7 @@ class TargetInfo(BaseModel):
     """是否在线"""
     avatar: Optional[str] = None
     """头像图片链接"""
+
 
 class UserChat(BaseModel):
     """私聊会话"""
@@ -323,15 +353,18 @@ class UserChat(BaseModel):
     target_info: Optional[TargetInfo] = None
     """目标用户信息"""
 
+
 class UserChatsReturn(ListReturn):
     """获取私信聊天会话列表返回信息"""
-    user_chats: Optional[List[UserChat]] = Field(None,alias="items")
+    user_chats: Optional[List[UserChat]] = Field(None, alias="items")
     """私聊会话列表"""
+
 
 class RolesReturn(ListReturn):
     """获取服务器角色列表返回信息"""
-    roles: Optional[List[Role]] = Field(None,alias="items")
+    roles: Optional[List[Role]] = Field(None, alias="items")
     """服务器角色列表"""
+
 
 class GuilRoleReturn(BaseModel):
     """赋予或删除用户角色返回信息"""
@@ -342,12 +375,14 @@ class GuilRoleReturn(BaseModel):
     roles: Optional[List[int]] = None
     """角色 id 的列表"""
 
+
 class IntimacyImg(BaseModel):
     """形象图片的总列表"""
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     """	形象图片的 id"""
     url: Optional[str] = None
     """形象图片的地址"""
+
 
 class IntimacyIndexReturn(BaseModel):
     """获取用户亲密度返回信息"""
@@ -362,19 +397,22 @@ class IntimacyIndexReturn(BaseModel):
     img_list: Optional[List[IntimacyImg]] = None
     """形象图片的总列表"""
 
+
 class GuildEmoji(BaseModel):
     """服务器表情"""
     name: Optional[str] = None
     """表情的名称"""
-    id: Optional[str] = None
+    id_: Optional[str] = Field(None, alias="id")
     """表情的 ID"""
     user_info: Optional[User] = None
     """上传用户"""
 
+
 class GuildEmojisReturn(ListReturn):
     """获取服务器表情列表返回信息"""
-    roles: Optional[List[GuildEmoji]] = Field(None,alias="items")
+    roles: Optional[List[GuildEmoji]] = Field(None, alias="items")
     """服务器表情列表"""
+
 
 class Invite(BaseModel):
     """邀请信息"""
@@ -389,7 +427,8 @@ class Invite(BaseModel):
     user: Optional[User] = None
     """用户"""
 
+
 class InvitesReturn(ListReturn):
     """获取邀请列表返回信息"""
-    roles: Optional[List[Invite]] = Field(None,alias="items")
+    roles: Optional[List[Invite]] = Field(None, alias="items")
     """邀请列表"""
