@@ -77,8 +77,11 @@ class Extra(BaseModel):
     attachments: Optional[Attachment] = Field(None)
     code: Optional[str] = Field(None)
 
-    @validator("body")
+    @validator("body", pre=True)
     def convert_body(cls, v):
+        if v is None:
+            return None
+
         if not isinstance(v, dict):
             raise TypeError('body must be dict')
         if not isinstance(v, AttrDict):

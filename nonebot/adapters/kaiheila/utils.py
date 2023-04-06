@@ -96,8 +96,13 @@ class ResultStore:
 
 
 class AttrDict(UserDict):
-    def __init__(self, initial=None):
+    def __init__(self, data=None):
+        initial = dict(data)
+        for k in initial:
+            if isinstance(initial[k], dict):
+                initial[k] = AttrDict(initial[k])
+
         super().__init__(initial)
 
     def __getattr__(self, name):
-        return self['name']
+        return self[name]
