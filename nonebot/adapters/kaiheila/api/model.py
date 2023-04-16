@@ -13,7 +13,7 @@ class User(BaseModel):
     """用户的 id"""
     username: Optional[str] = None
     """用户的名称"""
-    nikname: Optional[str] = None
+    nickname: Optional[str] = None
     """用户在当前服务器的昵称"""
     identify_num: Optional[str] = None
     """用户名的认证数字，用户名正常为：user_name#identify_num"""
