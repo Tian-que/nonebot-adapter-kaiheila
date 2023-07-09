@@ -23,6 +23,7 @@ api_method_map = {
     'direct-message/list': {'method': 'GET', 'type': DirectMessagesReturn},
     'direct-message/reaction-list': {'method': 'GET', 'type': List[ReactionUser]},
     'direct-message/update': {'method': 'POST', 'type': None},
+    'direct-message/view': {'method': 'GET', 'type': DirectMessage},
     'gateway/index': {'method': 'GET', 'type': URL},
     'guild-emoji/create': {'method': 'POST', 'type': None},
     'guild-emoji/delete': {'method': 'POST', 'type': None},
