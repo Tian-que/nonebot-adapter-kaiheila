@@ -195,6 +195,13 @@ class ApiClient:
         """
         ...
 
+    async def directMessage_view(
+            self, *,
+            chat_code: str,
+            msg_id: str
+    ) -> DirectMessage:
+        ...
+
     async def gateway_index(self, *, compress: Optional[int] = ...) -> URL:
         ...
 
