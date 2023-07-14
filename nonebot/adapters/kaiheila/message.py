@@ -97,10 +97,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @overrides(BaseMessageSegment)
     def is_text(self) -> bool:
-        if self.type == "kmarkdown":
-            return self.data["raw_content"] == self.data["content"]
-        else:
-            return self.type == "text"
+        return self.type == "text" or self.type == "kmarkdown"
 
     @staticmethod
     @deprecated("用 KMarkdown 语法 (met)用户id/here/all(met) 代替")
