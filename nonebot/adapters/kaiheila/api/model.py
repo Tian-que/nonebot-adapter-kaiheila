@@ -85,7 +85,7 @@ class ChannelRoleSyncResult(BaseModel):
     """针对角色在该频道的权限覆写规则组成的列表"""
     permission_users: Optional[List[PermissionUser]] = None
     """针对用户在该频道的权限覆写规则组成的列表"""
-    
+
 
 class Channel(ChannelRoleInfo):
     """开黑啦 频道 字段"""
@@ -241,6 +241,11 @@ class ChannelRoleReturn(BaseModel):
     user_id: Optional[str] = None
     allow: Optional[int] = None
     deny: Optional[int] = None
+
+
+class GetUserJoinedChannelReturn(ListReturn):
+    channels: Optional[List[Channel]] = Field(None, alias="items")
+
 
 
 class GuildsReturn(ListReturn):

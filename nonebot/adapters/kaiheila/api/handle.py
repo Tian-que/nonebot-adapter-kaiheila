@@ -5,6 +5,7 @@ api_method_map = {
     'blacklist/create': {'method': 'POST', 'type': None},
     'blacklist/delete': {'method': 'POST', 'type': None},
     'blacklist/list': {'method': 'GET', 'type': BlackListsReturn},
+    'channel-user/get-joined-channel': {'method': 'GET', 'type': GetUserJoinedChannelReturn},
     'channel-role/create': {'method': 'POST', 'type': ChannelRoleReturn},
     'channel-role/delete': {'method': 'POST', 'type': None},
     'channel-role/index': {'method': 'GET', 'type': ChannelRoleInfo},
