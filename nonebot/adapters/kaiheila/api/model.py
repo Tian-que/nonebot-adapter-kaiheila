@@ -79,6 +79,14 @@ class ChannelRoleInfo(BaseModel):
     """权限设置是否与分组同步, 1 or 0"""
 
 
+class ChannelRoleSyncResult(BaseModel):
+    """同步频道角色权限结果"""
+    permission_overwrites: Optional[List[PermissionOverwrite]] = None
+    """针对角色在该频道的权限覆写规则组成的列表"""
+    permission_users: Optional[List[PermissionUser]] = None
+    """针对用户在该频道的权限覆写规则组成的列表"""
+
+
 class Channel(ChannelRoleInfo):
     """开黑啦 频道 字段"""
     id_: Optional[str] = Field(None, alias="id")
@@ -233,6 +241,11 @@ class ChannelRoleReturn(BaseModel):
     user_id: Optional[str] = None
     allow: Optional[int] = None
     deny: Optional[int] = None
+
+
+class GetUserJoinedChannelReturn(ListReturn):
+    channels: Optional[List[Channel]] = Field(None, alias="items")
+
 
 
 class GuildsReturn(ListReturn):
@@ -396,6 +409,26 @@ class IntimacyIndexReturn(BaseModel):
     """亲密度，0-2200"""
     img_list: Optional[List[IntimacyImg]] = None
     """形象图片的总列表"""
+
+
+class GuildBoost(BaseModel):
+    """服务器助力历史"""
+    user_id: Optional[str] = None
+    """使用助力包的用户 ID"""
+    guild_id: Optional[str] = None
+    """服务器的 ID"""
+    start_time: Optional[int] = None
+    """助力包生效时间, Unix 时间戳 (单位: 秒)"""
+    end_time: Optional[int] = None
+    """助力包失效时间, Unix 时间戳 (单位: 秒)"""
+    user: Optional[User] = None
+    """使用助力包的用户数据对象"""
+
+
+class GuildBoostReturn(ListReturn):
+    """获取服务器助力历史返回信息"""
+    boost: Optional[List[GuildBoost]] = Field(None, alias="items")
+    """服务器助力历史列表"""
 
 
 class GuildEmoji(BaseModel):

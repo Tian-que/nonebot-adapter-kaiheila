@@ -25,6 +25,15 @@ class ApiClient:
     async def blacklist_list(self, *, guild_id: str) -> BlackListsReturn:
         ...
 
+    async def channelUser_getJoinedChannel(
+            self, *,
+            guild_id: str,
+            user_id: str,
+            page: Optional[int] = ...,
+            page_size: Optional[int] = ...
+    ) -> GetUserJoinedChannelReturn:
+        ...
+
     async def channelRole_create(
             self, *,
             channel_id: str,
@@ -60,6 +69,12 @@ class ApiClient:
             allow: Optional[int] = ...,
             deny: Optional[int] = ...
     ) -> ChannelRoleReturn:
+        ...
+
+    async def channelRole_sync(
+            self, *,
+            channel_id: str,
+    ) -> ChannelRoleSyncResult:
         ...
 
     async def channel_create(
@@ -203,6 +218,14 @@ class ApiClient:
         ...
 
     async def gateway_index(self, *, compress: Optional[int] = ...) -> URL:
+        ...
+
+    async def guildBoost_history(
+        self, *,
+        guild_id: str,
+        start_time: Optional[int] = ...,
+        end_time: Optional[int] = ...
+    ) -> GuildBoostReturn:
         ...
 
     async def guildEmoji_create(
