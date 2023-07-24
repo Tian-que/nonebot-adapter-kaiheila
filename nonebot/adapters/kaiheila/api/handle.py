@@ -9,6 +9,7 @@ api_method_map = {
     'channel-role/delete': {'method': 'POST', 'type': None},
     'channel-role/index': {'method': 'GET', 'type': ChannelRoleInfo},
     'channel-role/update': {'method': 'POST', 'type': ChannelRoleReturn},
+    'channel-role/sync': {'method': 'POST', 'type': ChannelRoleSyncResult},
     'channel/create': {'method': 'POST', 'type': Channel},
     'channel/delete': {'method': 'POST', 'type': None},
     'channel/update': {'method': 'POST', 'type': Channel},

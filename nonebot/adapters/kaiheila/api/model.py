@@ -79,6 +79,14 @@ class ChannelRoleInfo(BaseModel):
     """权限设置是否与分组同步, 1 or 0"""
 
 
+class ChannelRoleSyncResult(BaseModel):
+    """同步频道角色权限结果"""
+    permission_overwrites: Optional[List[PermissionOverwrite]] = None
+    """针对角色在该频道的权限覆写规则组成的列表"""
+    permission_users: Optional[List[PermissionUser]] = None
+    """针对用户在该频道的权限覆写规则组成的列表"""
+    
+
 class Channel(ChannelRoleInfo):
     """开黑啦 频道 字段"""
     id_: Optional[str] = Field(None, alias="id")
