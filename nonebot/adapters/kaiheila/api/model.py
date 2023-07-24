@@ -398,6 +398,26 @@ class IntimacyIndexReturn(BaseModel):
     """形象图片的总列表"""
 
 
+class GuildBoost(BaseModel):
+    """服务器助力历史"""
+    user_id: Optional[str] = None
+    """使用助力包的用户 ID"""
+    guild_id: Optional[str] = None
+    """服务器的 ID"""
+    start_time: Optional[int] = None
+    """助力包生效时间, Unix 时间戳 (单位: 秒)"""
+    end_time: Optional[int] = None
+    """助力包失效时间, Unix 时间戳 (单位: 秒)"""
+    user: Optional[User] = None
+    """使用助力包的用户数据对象"""
+
+
+class GuildBoostReturn(ListReturn):
+    """获取服务器助力历史返回信息"""
+    boost: Optional[List[GuildBoost]] = Field(None, alias="items")
+    """服务器助力历史列表"""
+
+
 class GuildEmoji(BaseModel):
     """服务器表情"""
     name: Optional[str] = None
