@@ -25,8 +25,16 @@ from .bot import Bot
 from .config import Config as KaiheilaConfig
 from .event import *
 from .event import OriginEvent
-from .exception import ApiNotAvailable, ReconnectError, TokenError, UnauthorizedException, RateLimitException, \
-    ActionFailed, KaiheilaAdapterException, NetworkError
+from .exception import (
+    ApiNotAvailable,
+    ReconnectError,
+    TokenError,
+    UnauthorizedException,
+    RateLimitException,
+    ActionFailed,
+    KaiheilaAdapterException,
+    NetworkError,
+)
 from .message import Message, MessageSegment
 from .utils import ResultStore, log, _handle_api_result
 
@@ -46,7 +54,7 @@ class Adapter(BaseAdapter):
     def __init__(self, driver: Driver, **kwargs: Any):
         super().__init__(driver, **kwargs)
         self.kaiheila_config: KaiheilaConfig = KaiheilaConfig(**self.config.dict())
-        self.api_root = f'https://www.kaiheila.cn/api/v3/'
+        self.api_root = "https://www.kaiheila.cn/api/v3/"
         self.connections: Dict[str, WebSocket] = {}
         self.tasks: List[asyncio.Task] = []
         self.setup()
@@ -96,25 +104,28 @@ class Adapter(BaseAdapter):
             if not self.api_root:
                 raise ApiNotAvailable()
 
-            match = re.findall(r'[A-Z]', api)
+            match = re.findall(r"[A-Z]", api)
             if len(match) > 0:
                 for m in match:
                     api = api.replace(m, "-" + m.lower())
             api = api.replace("_", "/")
 
             if api.startswith("/api/v3/"):
-                api = api[len("/api/v3/"):]
+                api = api[len("/api/v3/") :]
             elif api.startswith("api/v3"):
-                api = api[len("api/v3"):]
+                api = api[len("api/v3") :]
             api = api.strip("/")
             return await self._do_call_api(api, data, bot.token)
 
         else:
             raise ApiNotAvailable
 
-    async def _do_call_api(self, api: str,
-                           data: Optional[Mapping[str, Any]] = None,
-                           token: Optional[str] = None) -> Any:
+    async def _do_call_api(
+        self,
+        api: str,
+        data: Optional[Mapping[str, Any]] = None,
+        token: Optional[str] = None,
+    ) -> Any:
         log("DEBUG", f"Calling API <y>{api}</y>")
         data = dict(data) if data is not None else dict()
 
@@ -163,9 +174,11 @@ class Adapter(BaseAdapter):
         return await self._do_call_api("user/me", token=token)
 
     async def _get_gateway(self, token: str) -> URL:
-        result = await self._do_call_api("gateway/index",
-                                         data={'compress': 1 if self.kaiheila_config.compress else 0},
-                                         token=token)
+        result = await self._do_call_api(
+            "gateway/index",
+            data={"compress": 1 if self.kaiheila_config.compress else 0},
+            token=token,
+        )
         return result.url
 
     async def start_forward(self) -> None:
@@ -174,7 +187,9 @@ class Adapter(BaseAdapter):
             try:
                 url = await self._get_gateway(bot_token)
                 ws_url = URL(url)
-                self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot_token)))
+                self.tasks.append(
+                    asyncio.create_task(self._forward_ws(ws_url, bot_token))
+                )
             except TokenError as e:
                 log(
                     "ERROR",
@@ -200,9 +215,7 @@ class Adapter(BaseAdapter):
     async def _forward_ws(self, url: URL, bot_token: str) -> None:
         headers = {}
         if bot_token:
-            headers[
-                "Authorization"
-            ] = f"Bot {bot_token}"
+            headers["Authorization"] = f"Bot {bot_token}"
         request = Request("GET", url, headers=headers)
 
         bot: Optional[Bot] = None
@@ -215,7 +228,11 @@ class Adapter(BaseAdapter):
                         f"WebSocket Connection to {escape_tag(str(url))} established",
                     )
                     try:
-                        data_decompress_func = zlib.decompress if self.kaiheila_config.compress else lambda x: x
+                        data_decompress_func = (
+                            zlib.decompress
+                            if self.kaiheila_config.compress
+                            else lambda x: x
+                        )
                         while True:
                             data = await ws.receive()
                             data = data_decompress_func(data)
@@ -225,8 +242,8 @@ class Adapter(BaseAdapter):
                                 continue
                             if not bot:
                                 if (
-                                        not isinstance(event, LifecycleMetaEvent)
-                                        or event.sub_type != "connect"
+                                    not isinstance(event, LifecycleMetaEvent)
+                                    or event.sub_type != "connect"
                                 ):
                                     continue
                                 bot_info = await self._get_bot_info(bot_token)
@@ -290,33 +307,36 @@ class Adapter(BaseAdapter):
         while self.connections.get(bot.self_id):
             if self.connections.get(bot.self_id).closed:
                 break
-            await self.connections.get(bot.self_id).send(json.dumps({
-                "s": 2,
-                "sn": ResultStore.get_sn(bot.self_id)  # 客户端目前收到的最新的消息 sn
-            }))
+            await self.connections.get(bot.self_id).send(
+                json.dumps(
+                    {"s": 2, "sn": ResultStore.get_sn(bot.self_id)}  # 客户端目前收到的最新的消息 sn
+                )
+            )
             await asyncio.sleep(26)
 
     @classmethod
     def json_to_event(
-            cls, json_data: Any, self_id: Optional[str] = None,
+        cls,
+        json_data: Any,
+        self_id: Optional[str] = None,
     ) -> Optional[Event]:
         if not isinstance(json_data, dict):
             return None
 
-        signal = json_data['s']
+        signal = json_data["s"]
 
         if signal == SignalTypes.HELLO:
-            if json_data['d']['code'] == 0:
-                data = json_data['d']
+            if json_data["d"]["code"] == 0:
+                data = json_data["d"]
                 data["post_type"] = "meta_event"
-                data["sub_type"] = 'connect'
+                data["sub_type"] = "connect"
                 data["meta_event_type"] = "lifecycle"
                 return LifecycleMetaEvent.parse_obj(data)
-            elif json_data['d']['code'] == 40103:
+            elif json_data["d"]["code"] == 40103:
                 raise ReconnectError
-            elif json_data['d']['code'] == 40101:
+            elif json_data["d"]["code"] == 40101:
                 raise TokenError("无效的 token")
-            elif json_data['d']['code'] == 40102:
+            elif json_data["d"]["code"] == 40102:
                 raise TokenError("token 验证失败")
         elif signal == SignalTypes.PONG:
             data = dict()
@@ -340,34 +360,42 @@ class Adapter(BaseAdapter):
             return
 
         try:
-            data = json_data['d']
+            data = json_data["d"]
             extra = data.get("extra")
 
-            data['self_id'] = self_id
-            data['group_id'] = data.get('target_id')
-            data['time'] = data.get('msg_timestamp')
-            data['user_id'] = data.get('author_id') if data.get('author_id') != "1" else "SYSTEM"
+            data["self_id"] = self_id
+            data["group_id"] = data.get("target_id")
+            data["time"] = data.get("msg_timestamp")
+            data["user_id"] = (
+                data.get("author_id") if data.get("author_id") != "1" else "SYSTEM"
+            )
 
-            if data['type'] == EventTypes.sys:
-                data['post_type'] = "notice"
-                data['notice_type'] = extra.get('type')
+            if data["type"] == EventTypes.sys:
+                data["post_type"] = "notice"
+                data["notice_type"] = extra.get("type")
                 message = Message.template("{}").format(data["content"])
-                data['message'] = message
+                data["message"] = message
                 # data['notice_type'] = data.get('channel_type').lower()
                 # data['notice_type'] = 'private' if data['notice_type'] == 'person' else data['notice_type']
             else:
-                data['post_type'] = "message"
-                data['sub_type'] = [i.name.lower() for i in EventTypes if i.value == extra.get('type')][0]
-                data['message_type'] = data.get('channel_type').lower()
-                data['message_type'] = 'private' if data['message_type'] == 'person' else data['message_type']
-                data['extra']['content'] = data.get('content')
-                data['event'] = data['extra']
+                data["post_type"] = "message"
+                data["sub_type"] = [
+                    i.name.lower() for i in EventTypes if i.value == extra.get("type")
+                ][0]
+                data["message_type"] = data.get("channel_type").lower()
+                data["message_type"] = (
+                    "private"
+                    if data["message_type"] == "person"
+                    else data["message_type"]
+                )
+                data["extra"]["content"] = data.get("content")
+                data["event"] = data["extra"]
 
-            data['message_id'] = data.get('msg_id')
-            post_type = data['post_type']
+            data["message_id"] = data.get("msg_id")
+            post_type = data["post_type"]
             detail_type = data.get(f"{post_type}_type")
             detail_type = f".{detail_type}" if detail_type else ""
-            sub_type = data.get('sub_type')
+            sub_type = data.get("sub_type")
             sub_type = f".{sub_type}" if sub_type else ""
 
             models = cls.get_event_model(post_type + detail_type + sub_type)
@@ -407,12 +435,12 @@ class Adapter(BaseAdapter):
           - ``List[Type[Event]]``
         """
         return [model.value for model in cls.event_models.prefixes("." + event_name)][
-               ::-1
-               ]
+            ::-1
+        ]
 
     @classmethod
     def custom_send(
-            cls,
-            send_func: Callable[[Bot, Event, Union[str, Message, MessageSegment]], None],
+        cls,
+        send_func: Callable[[Bot, Event, Union[str, Message, MessageSegment]], None],
     ):
         setattr(Bot, "send_handler", send_func)

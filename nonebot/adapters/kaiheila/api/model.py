@@ -497,6 +497,8 @@ class InvitesReturn(ListReturn):
 
 
 class Array(BaseModel):
+    """机器人形象列表"""
+
     id: str
     """形象图片的 id"""
     url: str
