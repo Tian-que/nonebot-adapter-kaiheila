@@ -2,13 +2,23 @@ import re
 from io import BytesIO, BufferedReader
 from os import PathLike
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable
+from typing import (
+    Any,
+    Union,
+    TYPE_CHECKING,
+    BinaryIO,
+    Dict,
+    Optional,
+    Literal,
+    Callable,
+)
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
 from nonebot.typing import overrides
 
 from .api import ApiClient
+from .api.model import Intimacy
 from .event import Event, MessageEvent
 from .message import Message, MessageSegment, MessageSerializer
 from .utils import log
@@ -48,11 +58,11 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
             content: str = event.message[0].data["content"].strip()
             raw_content: str = event.message[0].data["raw_content"].strip()
             if content.startswith(met_str):
-                content = content[len(met_str):].lstrip()
-                raw_content = raw_content[len(raw_met_str):].lstrip()
+                content = content[len(met_str) :].lstrip()
+                raw_content = raw_content[len(raw_met_str) :].lstrip()
             elif content.endswith(met_str):
-                content = content[:-len(met_str)].rstrip()
-                raw_content = raw_content[:-len(raw_met_str)].rstrip()
+                content = content[: -len(met_str)].rstrip()
+                raw_content = raw_content[: -len(raw_met_str)].rstrip()
             event.message[0].data["content"] = content
             event.message[0].data["raw_content"] = raw_content
             event.message[0].data["is_plain_text"] = True
@@ -84,16 +94,16 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
             nickname = m.group(1)
             log("DEBUG", f"User is calling me {nickname}")
             event.to_me = True
-            first_msg_seg.data["content"] = first_text[m.end():]
+            first_msg_seg.data["content"] = first_text[m.end() :]
 
 
 async def send(
-        bot: "Bot",
-        event: Event,
-        message: Union[str, Message, MessageSegment],
-        reply_sender: bool = False,
-        is_temp_msg: bool = False,
-        **kwargs: Any,
+    bot: "Bot",
+    event: Event,
+    message: Union[str, Message, MessageSegment],
+    reply_sender: bool = False,
+    is_temp_msg: bool = False,
+    **kwargs: Any,
 ) -> Any:
     # 构造参数
     params = {**kwargs}
@@ -103,7 +113,7 @@ async def send(
         params.setdefault("quote", getattr(event, "message_id"))
 
     # message_type
-    if event.channel_type == 'GROUP':
+    if event.channel_type == "GROUP":
         params.setdefault("message_type", "channel")
 
         # temp_target_id
@@ -181,12 +191,12 @@ class Bot(BaseBot, ApiClient):
 
     @overrides(BaseBot)
     async def send(
-            self,
-            event: Event,
-            message: Union[str, Message, MessageSegment],
-            reply_sender: bool = False,
-            is_temp_msg: bool = False,
-            **kwargs,
+        self,
+        event: Event,
+        message: Union[str, Message, MessageSegment],
+        reply_sender: bool = False,
+        is_temp_msg: bool = False,
+        **kwargs,
     ) -> Any:
         """
         :说明:
@@ -211,72 +221,74 @@ class Bot(BaseBot, ApiClient):
           - ``NetworkError``: 网络错误
           - ``ActionFailed``: API 调用失败
         """
-        return await self.__class__.send_handler(self, event, message, reply_sender, is_temp_msg, **kwargs)
+        return await self.__class__.send_handler(
+            self, event, message, reply_sender, is_temp_msg, **kwargs
+        )
 
     async def send_private_msg(
-            self,
-            *,
-            user_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        user_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> Dict[str, Any]:
         """发送私聊消息。
 
-            user_id: 对方用户ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        user_id: 对方用户ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="private",
-                                   user_id=user_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="private", user_id=user_id, message=message, quote=quote
+        )
 
     async def send_channel_msg(
-            self,
-            *,
-            channel_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        channel_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> Dict[str, Any]:
         """发送频道消息。
 
-            channel_id: 频道ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        channel_id: 频道ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="channel",
-                                   channel_id=channel_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="channel", channel_id=channel_id, message=message, quote=quote
+        )
 
     async def send_temp_msg(
-            self,
-            *,
-            user_id: str,
-            channel_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        user_id: str,
+        channel_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> Dict[str, Any]:
         """发送频道临时消息。该消息不会存数据库，但是会在频道内只给该用户推送临时消息。用于在频道内针对用户的操作进行单独的回应通知等。
 
-            channel_id: 频道ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        channel_id: 频道ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="temp",
-                                   user_id=user_id,
-                                   channel_id=channel_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="temp",
+            user_id=user_id,
+            channel_id=channel_id,
+            message=message,
+            quote=quote,
+        )
 
     async def send_msg(
-            self,
-            *,
-            message_type: Literal['private', 'channel', 'temp', ''] = '',
-            user_id: Optional[str] = None,
-            channel_id: Optional[str] = None,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        message_type: Literal["private", "channel", "temp", ""] = "",
+        user_id: Optional[str] = None,
+        channel_id: Optional[str] = None,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> Dict[str, Any]:
         """发送消息。
 
@@ -297,15 +309,19 @@ class Bot(BaseBot, ApiClient):
             new_message = Message()
             # 提取message中的quote消息段
             for seg in message:
-                if seg.type == 'quote':
+                if seg.type == "quote":
                     if not quote:
                         quote = seg.data["msg_id"]
                 else:
                     new_message.append(seg)
 
-            params["type"], params["content"] = MessageSerializer(new_message).serialize()
+            params["type"], params["content"] = MessageSerializer(
+                new_message
+            ).serialize()
         elif isinstance(message, MessageSegment):
-            params["type"], params["content"] = MessageSerializer(Message(message)).serialize()
+            params["type"], params["content"] = MessageSerializer(
+                Message(message)
+            ).serialize()
         else:
             params["type"], params["content"] = 1, message
 
@@ -336,17 +352,21 @@ class Bot(BaseBot, ApiClient):
                 params["temp_target_id"] = user_id
                 api = "message/create"
             else:
-                raise ValueError(f"channel_id 和 user_id 不能同时为 None")
+                raise ValueError("channel_id 和 user_id 不能同时为 None")
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes],
-                          filename: Optional[str] = None) -> str:
+    async def upload_file(
+        self,
+        file: Union[str, PathLike[str], BinaryIO, bytes],
+        filename: Optional[str] = None,
+    ) -> str:
         """
         上传文件。
 
         参数:
             file: 文件，可以是文件路径（str, PathLike[str]）、打开的文件流（BinaryIO）、或二进制数据（bytes）
+
             filename: 文件名
 
         返回值:
@@ -363,3 +383,51 @@ class Bot(BaseBot, ApiClient):
         file = (filename or "upload-file", file, "application/octet-stream")
         result = await self.asset_create(file=file)
         return result.url
+
+    async def intimacy_index(
+        self,
+        user_id: str,
+    ) -> Intimacy:
+        """
+        好感度获取。
+
+        参数:
+            user_id: 用户id
+
+        """
+        api = f"intimacy/index?user_id={user_id}"
+        return await self.call_api(api)
+
+    async def intimacy_update(
+        self,
+        user_id: str,
+        score: Optional[int] = None,
+        social_info: Optional[str] = None,
+        img_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        好感度更新。
+
+        参数:
+            user_id: 用户id
+            score: 亲密度,0-2200
+            social_info: 机器人与用户的社交信息,500 字以内
+            img_id: 形象图片 ID
+
+        """
+        params = {}
+        api = "intimacy/update"
+        if user_id:
+            params["user_id"] = user_id
+        else:
+            raise ValueError("未知的好感度对象")
+        if score:
+            params["score"] = score
+        if social_info:
+            if len(social_info) > 500:
+                social_info = social_info[0:500]
+            params["social_info"] = social_info
+        if img_id:
+            params["img_id"] = img_id
+
+        return await self.call_api(api, **params)
