@@ -1,8 +1,8 @@
 import json
+import warnings
 from dataclasses import dataclass
 from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast, Optional
 
-from deprecated import deprecated
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from nonebot.typing import overrides
@@ -100,8 +100,11 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return self.type == "text" or self.type == "kmarkdown"
 
     @staticmethod
-    @deprecated("用 KMarkdown 语法 (met)用户id/here/all(met) 代替")
     def at(user_id: str) -> "MessageSegment":
+        warnings.warn(
+            "用 KMarkdown 语法 (met)用户id/here/all(met) 代替",
+            DeprecationWarning,
+        )
         return MessageSegment.KMarkdown(f"(met){user_id}(met)", user_id)
 
     @staticmethod
