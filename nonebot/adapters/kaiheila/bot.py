@@ -8,7 +8,7 @@ from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
 from nonebot.typing import overrides
 
-from .api import ApiClient
+from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
 from .message import Message, MessageSegment, MessageSerializer
 from .utils import log
@@ -187,7 +187,7 @@ class Bot(BaseBot, ApiClient):
             reply_sender: bool = False,
             is_temp_msg: bool = False,
             **kwargs,
-    ) -> Any:
+    ) -> MessageCreateReturn:
         """
         :说明:
 
@@ -219,7 +219,7 @@ class Bot(BaseBot, ApiClient):
             user_id: str,
             message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> MessageCreateReturn:
         """发送私聊消息。
 
             user_id: 对方用户ID
@@ -237,7 +237,7 @@ class Bot(BaseBot, ApiClient):
             channel_id: str,
             message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> MessageCreateReturn:
         """发送频道消息。
 
             channel_id: 频道ID
@@ -256,7 +256,7 @@ class Bot(BaseBot, ApiClient):
             channel_id: str,
             message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> MessageCreateReturn:
         """发送频道临时消息。该消息不会存数据库，但是会在频道内只给该用户推送临时消息。用于在频道内针对用户的操作进行单独的回应通知等。
 
             channel_id: 频道ID
@@ -277,7 +277,7 @@ class Bot(BaseBot, ApiClient):
             channel_id: Optional[str] = None,
             message: Union[str, Message, MessageSegment],
             quote: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> MessageCreateReturn:
         """发送消息。
 
         参数:
@@ -316,25 +316,25 @@ class Bot(BaseBot, ApiClient):
         # target_id & api
         if message_type == "channel":
             params["target_id"] = channel_id
-            api = "message/create"
+            api = "message_create"
         elif message_type == "private":
             params["target_id"] = user_id
-            api = "direct-message/create"
+            api = "directMessage_create"
         elif message_type == "temp":
             params["target_id"] = channel_id
             params["temp_target_id"] = user_id
-            api = "message/create"
+            api = "message_create"
         else:
             if channel_id and not user_id:
                 params["target_id"] = channel_id
-                api = "message/create"
+                api = "message_create"
             elif not channel_id and user_id:
                 params["target_id"] = user_id
-                api = "direct-message/create"
+                api = "directMessage_create"
             elif channel_id and user_id:
                 params["target_id"] = channel_id
                 params["temp_target_id"] = user_id
-                api = "message/create"
+                api = "message_create"
             else:
                 raise ValueError(f"channel_id 和 user_id 不能同时为 None")
 
