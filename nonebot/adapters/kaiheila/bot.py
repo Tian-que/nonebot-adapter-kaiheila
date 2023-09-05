@@ -1,8 +1,7 @@
 import re
 from io import BytesIO, BufferedReader
-from os import PathLike
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Dict, Optional, Literal, Callable
+from typing import Any, Union, TYPE_CHECKING, BinaryIO, Optional, Literal, Callable
 
 from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
@@ -14,6 +13,7 @@ from .message import Message, MessageSegment, MessageSerializer
 from .utils import log
 
 if TYPE_CHECKING:
+    from os import PathLike
     from .event import Event
     from .adapter import Adapter
     from .message import Message, MessageSegment
@@ -340,7 +340,7 @@ class Bot(BaseBot, ApiClient):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, PathLike[str], BinaryIO, bytes],
+    async def upload_file(self, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
                           filename: Optional[str] = None) -> str:
         """
         上传文件。
