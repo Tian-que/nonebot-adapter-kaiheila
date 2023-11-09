@@ -77,7 +77,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
     @overrides(BaseMessageSegment)
     def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
         if isinstance(other, str):
-            other = MessageSegment(self.type, {"content": other})
+            other = MessageSegment.text(other)
         return Message(other.conduct(self))
 
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
