@@ -77,7 +77,7 @@ class MessageSegment(BaseMessageSegment["Message"]):
     @overrides(BaseMessageSegment)
     def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
         if isinstance(other, str):
-            other = MessageSegment(self.type, {"content": other})
+            other = MessageSegment.text(other)
         return Message(other.conduct(self))
 
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
@@ -213,27 +213,25 @@ class Message(BaseMessage[MessageSegment]):
             prev = self[index - 1]
             cur = self[index]
             if prev.type == "text" and cur.type == "text":
-                self[index - 1] = MessageSegment(prev.type, {
-                    "content": prev.data["content"] + cur.data["content"]
-                })
+                self[index - 1] = MessageSegment.text(prev.data["content"] + cur.data["content"])
                 del self[index]
             elif prev.type == "kmarkdown" and cur.type == "kmarkdown":
-                self[index - 1] = MessageSegment(prev.type, {
-                    "content": prev.data["content"] + cur.data["content"],
-                    "raw_content": prev.data["raw_content"] + cur.data["raw_content"],
-                })
+                self[index - 1] = MessageSegment.KMarkdown(
+                    prev.data["content"] + cur.data["content"],
+                    prev.data["raw_content"] + cur.data["raw_content"],
+                )
                 del self[index]
             elif prev.type == "kmarkdown" and cur.type == "text":
-                self[index - 1] = MessageSegment(prev.type, {
-                    "content": prev.data["content"] + escape_kmarkdown(cur.data["content"]),
-                    "raw_content": prev.data["raw_content"] + cur.data["content"],
-                })
+                self[index - 1] = MessageSegment.KMarkdown(
+                    prev.data["content"] + escape_kmarkdown(cur.data["content"]),
+                    prev.data["raw_content"] + cur.data["content"],
+                )
                 del self[index]
             elif prev.type == "text" and cur.type == "kmarkdown":
-                self[index - 1] = MessageSegment(prev.type, {
-                    "content": escape_kmarkdown(prev.data["content"]) + cur.data["content"],
-                    "raw_content": prev.data["content"] + cur.data["raw_content"],
-                })
+                self[index - 1] = MessageSegment.KMarkdown(
+                    escape_kmarkdown(prev.data["content"]) + cur.data["content"],
+                    prev.data["content"] + cur.data["raw_content"],
+                )
                 del self[index]
             else:
                 index += 1
