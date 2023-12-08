@@ -56,7 +56,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
         """
         if isinstance(other, str):
-            other = [Text(other)]
+            other = [Text.create(other)]
         elif isinstance(other, MessageSegment):
             other = [other]
         msg = Message([self, *other])
