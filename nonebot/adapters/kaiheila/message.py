@@ -2,14 +2,19 @@ import json
 import warnings
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast
+from pathlib import Path
+from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, BinaryIO
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from typing_extensions import override
 
-from .exception import UnsupportedMessageType, UnsupportedMessageOperation
+from . import Bot
+from .exception import UnsupportedMessageType, UnsupportedMessageOperation, KaiheilaAdapterException
 from .utils import unescape_kmarkdown, escape_kmarkdown
+
+if TYPE_CHECKING:
+    from os import PathLike
 
 
 class MessageSegment(BaseMessageSegment["Message"], ABC):
@@ -36,7 +41,14 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     def plain_text(self):
         return ""
 
-    async def _serialize_for_send(self) -> Dict:
+    @classmethod
+    def type_code(cls) -> int:
+        """
+        对应开黑啦协议里消息的type属性
+        """
+        return -1
+
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         raise NotImplementedError()
 
     # @override
@@ -134,13 +146,6 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
 
 class ReceivableMessageSegment(MessageSegment):
     @classmethod
-    def type_code(cls) -> int:
-        """
-        对应开黑啦协议里消息的type属性
-        """
-        return -1
-
-    @classmethod
     def _deserialize(cls, raw_data: Dict) -> Self:
         raise NotImplementedError()
 
@@ -176,7 +181,7 @@ class Text(ReceivableMessageSegment):
         return True
 
     @override
-    async def _serialize_for_send(self) -> Dict:
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         return {"type": self.type_code(), "content": self.data["text"]}
 
     @classmethod
@@ -185,7 +190,7 @@ class Text(ReceivableMessageSegment):
         return cls.create(raw_data["content"])
 
     @classmethod
-    def create(cls, text: str):
+    def create(cls, text: str) -> "Text":
         return cls("text", {"text": text})
 
 
@@ -216,7 +221,7 @@ class KMarkdown(ReceivableMessageSegment):
         return True
 
     @override
-    async def _serialize_for_send(self) -> Dict:
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         return {"type": self.type_code(), "content": self.data["content"]}
 
     @classmethod
@@ -234,7 +239,7 @@ class KMarkdown(ReceivableMessageSegment):
         return cls.create(content, raw_content)
 
     @classmethod
-    def create(cls, content: str, raw_content: Optional[str]):
+    def create(cls, content: str, raw_content: Optional[str]) -> "KMarkdown":
         if raw_content is None:
             raw_content = ""
 
@@ -262,7 +267,7 @@ class Card(ReceivableMessageSegment):
         return "[卡片消息]"
 
     @override
-    async def _serialize_for_send(self) -> Dict:
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         return {"type": self.type_code(), "content": self.data["content"]}
 
     @classmethod
@@ -271,7 +276,7 @@ class Card(ReceivableMessageSegment):
         return cls.create(raw_data["content"])
 
     @classmethod
-    def create(cls, content: Any):
+    def create(cls, content: Any) -> "Card":
         if not isinstance(content, str):
             content = json.dumps(content)
 
@@ -288,7 +293,7 @@ class Media(ReceivableMessageSegment):
         data: _MediaData
 
     @override
-    async def _serialize_for_send(self) -> Dict:
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         return {"type": self.type_code(), "content": self.data["file_key"]}
 
 
@@ -308,7 +313,7 @@ class Image(Media):
         return cls.create(raw_data["attachments"]["url"])
 
     @classmethod
-    def create(cls, file_key: str):
+    def create(cls, file_key: str) -> "Image":
         return cls("image", {
             "file_key": file_key
         })
@@ -331,16 +336,16 @@ class Video(Media):
         return "[视频]"
 
     @classmethod
-    def create(cls, file_key: str, title: Optional[str] = None):
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+
+    @classmethod
+    def create(cls, file_key: str, title: Optional[str] = None) -> "Video":
         return cls("video", {
             "file_key": file_key,
             "title": title
         })
-
-    @classmethod
-    @override
-    def _deserialize(cls, raw_data: Dict) -> Self:
-        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
 
 
 class Audio(Media):
@@ -360,19 +365,19 @@ class Audio(Media):
     def __str__(self) -> str:
         return "[音频]"
 
-    async def _serialize_for_send(self) -> Dict:
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
         # 转化为卡片消息发送
-        return await _convert_to_card_message(Message(self))._serialize_for_send()
+        return await _convert_to_card_message(Message(self))._serialize_for_send(bot)
 
     @classmethod
     @override
     def _deserialize(cls, raw_data: Dict) -> Self:
-        return cls.create(raw_data["attachments"]["url"])
+        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
 
     @classmethod
     def create(cls, file_key: str,
                title: Optional[str] = None,
-               cover_file_key: Optional[str] = None):
+               cover_file_key: Optional[str] = None) -> "Audio":
         return cls("audio", {
             "file_key": file_key,
             "title": title,
@@ -403,11 +408,156 @@ class File(Media):
 
     @classmethod
     def create(cls, file_key: str,
-               title: Optional[str] = None):
+               title: Optional[str] = None) -> "File":
         return cls("file", {
             "file_key": file_key,
             "title": title
         })
+
+
+class LocalMedia(SendOnlyMessageSegment):
+    if TYPE_CHECKING:
+        class _LocalMediaData(TypedDict):
+            content: Optional[bytes]
+            file_name: Optional[str]
+            file: Optional[Path]
+
+        data: _LocalMediaData
+
+    async def _upload(self, bot: Bot) -> str:
+        if self.data["file"] is None and self.data["content"] is None:
+            raise KaiheilaAdapterException("file_path 与 content 均为 None")
+
+        if not self.data["file_name"] and self.data["file"]:
+            self.data["file_name"] = self.data["file"].name
+        file_key = await bot.upload_file(self.data["content"] or self.data["file"])
+        return file_key
+
+    @classmethod
+    def _handle_file(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+                     filename: Optional[str] = None) -> "_LocalMediaData":
+        data = {"filename": filename, "content": None, "file": None}
+
+        if isinstance(file, BinaryIO):
+            data["content"] = file.read()
+        elif isinstance(file, bytes):
+            data["content"] = file
+        else:
+            data["file"] = Path(file)
+            if filename is None:
+                data["filename"] = data["file"].name
+
+        return data
+
+
+class LocalImage(LocalMedia):
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return Image.type_code()
+
+    @override
+    def __str__(self) -> str:
+        return "[本地图片]"
+
+    @override
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
+        file_key = await self._upload(bot)
+        return await Image.create(file_key)._serialize_for_send(bot)
+
+    @classmethod
+    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+               filename: Optional[str] = None) -> "LocalImage":
+        data = cls._handle_file(file, filename)
+        return cls("local_image", data)
+
+
+class LocalVideo(LocalMedia):
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return Video.type_code()
+
+    @override
+    def __str__(self) -> str:
+        return "[本地视频]"
+
+    @override
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
+        file_key = await self._upload(bot)
+        return await Video.create(file_key)._serialize_for_send(bot)
+
+    @classmethod
+    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+               filename: Optional[str] = None) -> "LocalVideo":
+        data = cls._handle_file(file, filename)
+        return cls("local_video", data)
+
+
+class LocalFile(LocalMedia):
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return File.type_code()
+
+    @override
+    def __str__(self) -> str:
+        return "[本地文件]"
+
+    @override
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
+        file_key = await self._upload(bot)
+        return await File.create(file_key)._serialize_for_send(bot)
+
+    @classmethod
+    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+               filename: Optional[str] = None) -> "LocalFile":
+        data = cls._handle_file(file, filename)
+        return cls("local_file", data)
+
+
+class LocalAudio(LocalMedia):
+    if TYPE_CHECKING:
+        class _LocalAudioData(LocalMedia._LocalMediaData):
+            cover_content: Optional[bytes]
+            cover_file: Optional[Path]
+
+        data: _LocalAudioData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return Audio.type_code()
+
+    @override
+    def __str__(self) -> str:
+        return "[本地音频]"
+
+    @override
+    async def _serialize_for_send(self, bot: Bot) -> Dict:
+        file_key = await self._upload(bot)
+
+        if self.data["cover_content"] or self.data["cover_file"]:
+            cover_file_key = await bot.upload_file(self.data["cover_content"] or self.data["cover_file"])
+        else:
+            cover_file_key = None
+
+        return await Audio.create(file_key, cover_file_key=cover_file_key)._serialize_for_send(bot)
+
+    @classmethod
+    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+               filename: Optional[str] = None,
+               cover: Union[None, str, 'PathLike[str]', BinaryIO, bytes] = None) -> "LocalAudio":
+        data = cls._handle_file(file, filename)
+
+        if cover is not None:
+            cover_data = cls._handle_file(cover)
+            cover_data = {"cover_content": cover_data["content"], "cover_file": cover_data["file"]}
+        else:
+            cover_data = {"cover_content": None, "cover_file": None}
+
+        data = {**data, **cover_data}
+        return cls("local_audio", data)
 
 
 class Quote(SendOnlyMessageSegment):
@@ -422,7 +572,7 @@ class Quote(SendOnlyMessageSegment):
         return "[引用消息]"
 
     @classmethod
-    def create(cls, msg_id: str):
+    def create(cls, msg_id: str) -> "Quote":
         return cls("quote", {
             "msg_id": msg_id
         })
@@ -536,7 +686,7 @@ class MessageSerializer:
     """
     message: Message
 
-    async def serialize(self) -> Dict:
+    async def serialize(self, bot: Bot) -> Dict:
         serialized_data = {}
 
         # quote
@@ -555,12 +705,12 @@ class MessageSerializer:
             card_msg = Message(_convert_to_card_message(self.message))
             serialized_data = {
                 **serialized_data,
-                **(await MessageSerializer(card_msg).serialize())
+                **(await MessageSerializer(card_msg).serialize(bot))
             }
         else:
             serialized_data = {
                 **serialized_data,
-                **(await self.message[0]._serialize_for_send())
+                **(await self.message[0]._serialize_for_send(bot))
             }
         return serialized_data
 

@@ -294,12 +294,16 @@ class Bot(BaseBot, ApiClient):
 
         # type & content
         if isinstance(message, Message):
-            serialized_data = await MessageSerializer(message).serialize()
+            serialized_data = await MessageSerializer(message).serialize(self)
         elif isinstance(message, MessageSegment):
-            serialized_data = await MessageSerializer(Message(message)).serialize()
+            serialized_data = await MessageSerializer(Message(message)).serialize(self)
         else:
             serialized_data = Text.type_code(), message
         params = {**params, **serialized_data}
+
+        # quote
+        if quote is not None:
+            params["quote"] = quote
 
         # target_id & api
         if message_type == "channel":

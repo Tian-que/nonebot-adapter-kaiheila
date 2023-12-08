@@ -10,8 +10,8 @@ from nonebot.exception import NoLogException as BaseNoLogException
 
 
 class KaiheilaAdapterException(AdapterException):
-    def __init__(self):
-        super().__init__("Kaiheila")
+    def __init__(self, *args: object):
+        super().__init__("Kaiheila", *args)
 
 
 class NoLogException(BaseNoLogException, KaiheilaAdapterException):
