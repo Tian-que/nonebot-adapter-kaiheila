@@ -91,7 +91,7 @@ class UnsupportedMessageType(KaiheilaAdapterException):
     """
     :说明:
 
-      在发送不支持的消息类型时抛出，开黑啦 Bot 不支持发送音频消息。
+      在发送不支持的消息类型时抛出。
     """
 
     def __init__(self, message: str = ""):
@@ -106,7 +106,7 @@ class UnsupportedMessageOperation(KaiheilaAdapterException):
     """
     :说明:
 
-      在调用不支持的 Message 或 MessageSegment 操作时抛出，例如对图片类型的 MessageSegment 使用加运算。
+      在调用不支持的 Message 或 MessageSegment 操作时抛出。
     """
 
     def __init__(self, message: str = ""):

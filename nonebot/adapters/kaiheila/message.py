@@ -51,16 +51,6 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     async def _serialize_for_send(self, bot: Bot) -> Dict:
         raise NotImplementedError()
 
-    # @override
-    # def __add__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
-    #     return Message(self.conduct(other))
-    #
-    # @override
-    # def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
-    #     if isinstance(other, str):
-    #         other = Text.create(other)
-    #     return Message(other.conduct(self))
-
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
         """
         连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
@@ -82,7 +72,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return False
 
     @staticmethod
-    def at(user_id: str) -> "MessageSegment":
+    def at(user_id: str) -> "KMarkdown":
         warnings.warn(
             "用 KMarkdown 语法 (met)用户id/here/all(met) 代替",
             DeprecationWarning,
@@ -90,7 +80,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return MessageSegment.KMarkdown(f"(met){user_id}(met)", "@" + user_id)
 
     @staticmethod
-    def text(text: str) -> "MessageSegment":
+    def text(text: str) -> "Text":
         """
         构造文本消息段
 
@@ -99,7 +89,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Text.create(text)
 
     @staticmethod
-    def KMarkdown(content: str, raw_content: Optional[str] = None) -> "MessageSegment":
+    def KMarkdown(content: str, raw_content: Optional[str] = None) -> "KMarkdown":
         """
         构造KMarkdown消息段
 
@@ -109,7 +99,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return KMarkdown.create(content, raw_content)
 
     @staticmethod
-    def Card(content: Any) -> "MessageSegment":
+    def Card(content: Any) -> "Card":
         """
         构造卡片消息
 
@@ -118,13 +108,22 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Card.create(content)
 
     @staticmethod
-    def image(file_key: str) -> "MessageSegment":
+    def image(file_key: str) -> "Image":
         return Image.create(file_key)
 
     @staticmethod
+    def local_image(file: Union[str, 'PathLike[str]', BinaryIO, bytes]) -> "LocalImage":
+        return LocalImage.create(file)
+
+    @staticmethod
     def video(file_key: str,
-              title: Optional[str] = None) -> "MessageSegment":
+              title: Optional[str] = None) -> "Video":
         return Video.create(file_key, title)
+
+    @staticmethod
+    def local_video(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+                    title: Optional[str] = None) -> "LocalVideo":
+        return LocalVideo.create(file, title)
 
     @staticmethod
     def audio(file_key: str,
@@ -133,15 +132,24 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Audio.create(file_key, title, cover_file_key)
 
     @staticmethod
+    def local_audio(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+                    title: Optional[str] = None,
+                    cover: Union[None, str, 'PathLike[str]', BinaryIO, bytes] = None) -> "LocalAudio":
+        return LocalAudio.create(file, title, cover)
+
+    @staticmethod
     def file(file_key: str,
-             title: Optional[str] = None) -> "MessageSegment":
+             title: Optional[str] = None) -> "File":
         return File.create(file_key, title)
 
     @staticmethod
-    def quote(msg_id: str) -> "MessageSegment":
-        return MessageSegment("quote", {
-            "msg_id": msg_id
-        })
+    def local_file(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+                   title: Optional[str] = None) -> "LocalFile":
+        return LocalFile.create(file, title)
+
+    @staticmethod
+    def quote(msg_id: str) -> "Quote":
+        return Quote.create(msg_id)
 
 
 class ReceivableMessageSegment(MessageSegment):
@@ -419,7 +427,7 @@ class LocalMedia(SendOnlyMessageSegment):
     if TYPE_CHECKING:
         class _LocalMediaData(TypedDict):
             content: Optional[bytes]
-            file_name: Optional[str]
+            title: Optional[str]
             file: Optional[Path]
 
         data: _LocalMediaData
@@ -428,15 +436,13 @@ class LocalMedia(SendOnlyMessageSegment):
         if self.data["file"] is None and self.data["content"] is None:
             raise KaiheilaAdapterException("file_path 与 content 均为 None")
 
-        if not self.data["file_name"] and self.data["file"]:
-            self.data["file_name"] = self.data["file"].name
-        file_key = await bot.upload_file(self.data["content"] or self.data["file"])
+        file_key = await bot.upload_file(self.data["content"] or self.data["file"], self.data["title"])
         return file_key
 
     @classmethod
     def _handle_file(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
-                     filename: Optional[str] = None) -> "_LocalMediaData":
-        data = {"filename": filename, "content": None, "file": None}
+                     title: Optional[str] = None) -> "LocalMedia._LocalMediaData":
+        data = {"title": title, "content": None, "file": None}
 
         if isinstance(file, BinaryIO):
             data["content"] = file.read()
@@ -444,8 +450,8 @@ class LocalMedia(SendOnlyMessageSegment):
             data["content"] = file
         else:
             data["file"] = Path(file)
-            if filename is None:
-                data["filename"] = data["file"].name
+            if title is None:
+                data["title"] = data["file"].name
 
         return data
 
@@ -466,9 +472,8 @@ class LocalImage(LocalMedia):
         return await Image.create(file_key)._serialize_for_send(bot)
 
     @classmethod
-    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
-               filename: Optional[str] = None) -> "LocalImage":
-        data = cls._handle_file(file, filename)
+    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes]) -> "LocalImage":
+        data = cls._handle_file(file)
         return cls("local_image", data)
 
 
@@ -489,8 +494,8 @@ class LocalVideo(LocalMedia):
 
     @classmethod
     def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
-               filename: Optional[str] = None) -> "LocalVideo":
-        data = cls._handle_file(file, filename)
+               title: Optional[str] = None) -> "LocalVideo":
+        data = cls._handle_file(file, title)
         return cls("local_video", data)
 
 
