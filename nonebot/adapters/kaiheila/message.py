@@ -9,11 +9,11 @@ from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from typing_extensions import override
 
-from . import Bot
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation, KaiheilaAdapterException
 from .utils import unescape_kmarkdown, escape_kmarkdown
 
 if TYPE_CHECKING:
+    from .bot import Bot
     from os import PathLike
 
 
@@ -48,7 +48,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         """
         return -1
 
-    async def _serialize_for_send(self, bot: Bot) -> Optional[Dict]:
+    async def _serialize_for_send(self, bot: "Bot") -> Optional[Dict]:
         return None
 
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
@@ -225,7 +225,7 @@ class Text(ReceivableMessageSegment):
         return True
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         return {"type": self.type_code(), "content": self.data["text"]}
 
     @classmethod
@@ -265,7 +265,7 @@ class KMarkdown(ReceivableMessageSegment):
         return True
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         return {"type": self.type_code(), "content": self.data["content"]}
 
     @classmethod
@@ -311,7 +311,7 @@ class Card(ReceivableMessageSegment):
         return "[卡片消息]"
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         return {"type": self.type_code(), "content": self.data["content"]}
 
     @classmethod
@@ -337,7 +337,7 @@ class Media(ReceivableMessageSegment):
         data: _MediaData
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         return {"type": self.type_code(), "content": self.data["file_key"]}
 
 
@@ -409,7 +409,7 @@ class Audio(Media):
     def __str__(self) -> str:
         return "[音频]"
 
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         # 转化为卡片消息发送
         return await _convert_to_card_message(Message(self))._serialize_for_send(bot)
 
@@ -468,7 +468,7 @@ class LocalMedia(SendOnlyMessageSegment):
 
         data: _LocalMediaData
 
-    async def _upload(self, bot: Bot) -> str:
+    async def _upload(self, bot: "Bot") -> str:
         if self.data["file"] is None and self.data["content"] is None:
             raise KaiheilaAdapterException("file_path 与 content 均为 None")
 
@@ -503,7 +503,7 @@ class LocalImage(LocalMedia):
         return "[本地图片]"
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         file_key = await self._upload(bot)
         return await Image.create(file_key)._serialize_for_send(bot)
 
@@ -524,7 +524,7 @@ class LocalVideo(LocalMedia):
         return "[本地视频]"
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         file_key = await self._upload(bot)
         return await Video.create(file_key)._serialize_for_send(bot)
 
@@ -546,7 +546,7 @@ class LocalFile(LocalMedia):
         return "[本地文件]"
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         file_key = await self._upload(bot)
         return await File.create(file_key)._serialize_for_send(bot)
 
@@ -575,7 +575,7 @@ class LocalAudio(LocalMedia):
         return "[本地音频]"
 
     @override
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
         file_key = await self._upload(bot)
 
         if self.data["cover_content"] or self.data["cover_file"]:
@@ -624,12 +624,16 @@ class Mention(VirtualMessageSegment):
     if TYPE_CHECKING:
         class _MentionData(VirtualMessageSegment._VirtualData):
             user_id: str
+            username: Optional[str]
 
         data: _MentionData
 
     @override
     def __str__(self) -> str:
-        return f"@{self.data['user_id']}"
+        if self.data['username']:
+            return f"@{self.data['username']}"
+        else:
+            return f"@用户{self.data['user_id']}"
 
     @override
     def _actual_seg(self) -> KMarkdown:
@@ -639,9 +643,10 @@ class Mention(VirtualMessageSegment):
         )
 
     @classmethod
-    def create(cls, user_id: str) -> "Mention":
+    def create(cls, user_id: str, username: Optional[str] = None) -> "Mention":
         return cls("mention", {
             "user_id": user_id,
+            "username": username,
             "for_send": True
         })
 
@@ -650,14 +655,14 @@ class MentionRole(VirtualMessageSegment):
     if TYPE_CHECKING:
         class _MentionData(VirtualMessageSegment._VirtualData):
             role_id: str
-            role_name: Optional[str]
+            name: Optional[str]
 
         data: _MentionData
 
     @override
     def __str__(self) -> str:
-        if self.data['role_name']:
-            return f"@{self.data['role_name']}"
+        if self.data['name']:
+            return f"@{self.data['name']}"
         else:
             return f"@角色{self.data['role_id']}"
 
@@ -669,9 +674,10 @@ class MentionRole(VirtualMessageSegment):
         )
 
     @classmethod
-    def create(cls, role_id: str) -> "MentionRole":
+    def create(cls, role_id: str, name: Optional[str] = None) -> "MentionRole":
         return cls("mention_role", {
             "role_id": role_id,
+            "name": name,
             "for_send": True
         })
 
@@ -723,7 +729,7 @@ class Message(BaseMessage[MessageSegment]):
     @staticmethod
     @override
     def _construct(msg: str) -> Iterable[MessageSegment]:
-        yield Text(msg)
+        yield Text.create(msg)
 
     @override
     def extract_plain_text(self) -> str:
@@ -818,7 +824,7 @@ class MessageSerializer:
     """
     message: Message
 
-    async def serialize(self, bot: Bot) -> Dict:
+    async def serialize(self, bot: "Bot") -> Dict:
         serialized_data = {}
 
         # quote
@@ -908,6 +914,24 @@ class MessageDeserializer:
         else:
             msg.append(self.type._deserialize(self.data))
 
-        # TODO：提取mention
+        for mention in self.data['kmarkdown']['mention_part']:
+            seg = Mention.create(mention['id'], mention['username'])
+            seg.data['for_send'] = False
+            msg.append(seg)
+
+        for mention in self.data['kmarkdown']['mention_role_part']:
+            seg = MentionRole.create(mention['role_id'], mention['name'])
+            seg.data['for_send'] = False
+            msg.append(seg)
+
+        if self.data['mention_all']:
+            seg = MentionAll.create()
+            seg.data['for_send'] = False
+            msg.append(seg)
+
+        if self.data['mention_here']:
+            seg = MentionHere.create()
+            seg.data['for_send'] = False
+            msg.append(seg)
 
         return msg

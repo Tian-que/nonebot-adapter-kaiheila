@@ -9,21 +9,19 @@ from nonebot.typing import overrides
 
 from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
-from .message import Message, MessageSegment, MessageSerializer, Text
+from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
 from .utils import log
 
 if TYPE_CHECKING:
     from os import PathLike
-    from .event import Event
     from .adapter import Adapter
-    from .message import Message, MessageSegment
 
 
 def _check_at_me(bot: "Bot", event: MessageEvent):
     """
     :说明:
 
-      检查消息开头或结尾是否存在 @机器人，去除并赋值 ``event.to_me``
+      检查消息是否存在 @机器人，去除并赋值 ``event.to_me``
 
     :参数:
 
@@ -40,22 +38,14 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
     if event.message_type == "private":
         event.to_me = True
     else:
-        if event.message[0].type == "kmarkdown" and bot.self_id in event.extra.mention:
-            event.to_me = True
-            met_str = f"(met){bot.self_id}(met)"
-            raw_met_str = f"@{bot.self_name}"
-
-            content: str = event.message[0].data["content"].strip()
-            raw_content: str = event.message[0].data["raw_content"].strip()
-            if content.startswith(met_str):
-                content = content[len(met_str):].lstrip()
-                raw_content = raw_content[len(raw_met_str):].lstrip()
-            elif content.endswith(met_str):
-                content = content[:-len(met_str)].rstrip()
-                raw_content = raw_content[:-len(raw_met_str)].rstrip()
-            event.message[0].data["content"] = content
-            event.message[0].data["raw_content"] = raw_content
-            event.message[0].data["is_plain_text"] = True
+        at_me_index = -1
+        for i, seg in enumerate(event.message):
+            if isinstance(seg, Mention) and seg.data['user_id'] == bot.self_id:
+                event.to_me = True
+                at_me_index = i
+                break
+        if at_me_index != -1:
+            event.message.pop(at_me_index)
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):
@@ -69,22 +59,20 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
       * ``bot: Bot``: Bot 对象
       * ``event: Event``: Event 对象
     """
-    first_msg_seg = event.message[0]
-    if first_msg_seg.type != "text":
-        return
+    if isinstance(event.message[0], Text):
+        first_text = event.message[0].data["text"]
 
-    first_text = first_msg_seg.data["content"]
-
-    nicknames = set(filter(lambda n: n, bot.config.nickname))
-    if nicknames:
-        # check if the user is calling me with my nickname
-        nickname_regex = "|".join(nicknames)
-        m = re.search(rf"^({nickname_regex})([\s,，]*|$)", first_text, re.IGNORECASE)
-        if m:
-            nickname = m.group(1)
-            log("DEBUG", f"User is calling me {nickname}")
-            event.to_me = True
-            first_msg_seg.data["content"] = first_text[m.end():]
+        nicknames = set(filter(lambda n: n, bot.config.nickname))
+        if nicknames:
+            # check if the user is calling me with my nickname
+            nickname_regex = "|".join(nicknames)
+            m = re.search(rf"^({nickname_regex})([\s,，]*|$)", first_text, re.IGNORECASE)
+            if m:
+                nickname = m.group(1)
+                log("DEBUG", f"User is calling me {nickname}")
+                event.to_me = True
+                event.message[0].data["text"] = first_text[m.end():]
+    # TODO: kmarkdown
 
 
 async def send(
@@ -295,10 +283,8 @@ class Bot(BaseBot, ApiClient):
         # type & content
         if isinstance(message, Message):
             serialized_data = await MessageSerializer(message).serialize(self)
-        elif isinstance(message, MessageSegment):
-            serialized_data = await MessageSerializer(Message(message)).serialize(self)
         else:
-            serialized_data = Text.type_code(), message
+            serialized_data = await MessageSerializer(Message(message)).serialize(self)
         params = {**params, **serialized_data}
 
         # quote
