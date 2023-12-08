@@ -1,42 +1,18 @@
 import json
 import warnings
+from abc import ABC
 from dataclasses import dataclass
-from typing import Any, Type, Tuple, Union, Mapping, Iterable, Dict, cast, Optional
+from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
-from nonebot.typing import overrides
+from typing_extensions import override
 
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation
 from .utils import unescape_kmarkdown, escape_kmarkdown
 
-msg_type_map = {
-    "text": 1,
-    "image": 2,
-    "video": 3,
-    "file": 4,
-    "audio": 8,
-    "kmarkdown": 9,
-    "card": 10,
-}
 
-rev_msg_type_map = {}
-for msg_type, code in msg_type_map.items():
-    rev_msg_type_map[code] = msg_type
-
-# 根据协议消息段类型显示消息段内容
-segment_text = {
-    "text": "[文字]",
-    "image": "[图片]",
-    "video": "[视频]",
-    "file": "[文件]",
-    "audio": "[音频]",
-    "kmarkdown": "[KMarkdown消息]",
-    "card": "[卡片消息]",
-}
-
-
-class MessageSegment(BaseMessageSegment["Message"]):
+class MessageSegment(BaseMessageSegment["Message"], ABC):
     """
     开黑啦 协议 MessageSegment 适配。具体方法参考协议消息段类型或源码。
 
@@ -49,43 +25,37 @@ class MessageSegment(BaseMessageSegment["Message"]):
     # regex使用str(Message)
 
     @classmethod
-    @overrides(BaseMessageSegment)
+    @override
     def get_message_class(cls) -> Type["Message"]:
         return Message
 
     def __str__(self) -> str:
-        if self.type in ["text", "kmarkdown"]:
-            return str(self.data["content"])
-        elif self.type == "at":
-            return str(f"@{self.data['user_name']}")
-        else:
-            return segment_text.get(self.type, "[未知类型消息]")
+        return "[未知类型消息]"
 
     @property
     def plain_text(self):
-        if self.type == "text":
-            return self.data["content"]
-        elif self.type == "kmarkdown":
-            return self.data["raw_content"]
-        else:
-            return ""
+        return ""
 
-    @overrides(BaseMessageSegment)
-    def __add__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
-        return Message(self.conduct(other))
+    async def _serialize_for_send(self) -> Dict:
+        raise NotImplementedError()
 
-    @overrides(BaseMessageSegment)
-    def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
-        if isinstance(other, str):
-            other = MessageSegment.text(other)
-        return Message(other.conduct(self))
+    # @override
+    # def __add__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
+    #     return Message(self.conduct(other))
+    #
+    # @override
+    # def __radd__(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "Message":
+    #     if isinstance(other, str):
+    #         other = Text.create(other)
+    #     return Message(other.conduct(self))
 
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
         """
         连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
         """
-
-        if isinstance(other, str) or isinstance(other, MessageSegment):
+        if isinstance(other, str):
+            other = [Text(other)]
+        elif isinstance(other, MessageSegment):
             other = [other]
         msg = Message([self, *other])
         msg.reduce()
@@ -95,9 +65,9 @@ class MessageSegment(BaseMessageSegment["Message"]):
         else:
             return msg[0]
 
-    @overrides(BaseMessageSegment)
+    @override
     def is_text(self) -> bool:
-        return self.type == "text" or self.type == "kmarkdown"
+        return False
 
     @staticmethod
     def at(user_id: str) -> "MessageSegment":
@@ -105,41 +75,16 @@ class MessageSegment(BaseMessageSegment["Message"]):
             "用 KMarkdown 语法 (met)用户id/here/all(met) 代替",
             DeprecationWarning,
         )
-        return MessageSegment.KMarkdown(f"(met){user_id}(met)", user_id)
+        return MessageSegment.KMarkdown(f"(met){user_id}(met)", "@" + user_id)
 
     @staticmethod
     def text(text: str) -> "MessageSegment":
-        return MessageSegment("text", {"content": text})
+        """
+        构造文本消息段
 
-    @staticmethod
-    def image(file_key: str) -> "MessageSegment":
-        return MessageSegment("image", {"file_key": file_key})
-
-    @staticmethod
-    def video(file_key: str,
-              title: Optional[str] = None) -> "MessageSegment":
-        return MessageSegment("video", {
-            "file_key": file_key,
-            "title": title,
-        })
-
-    @staticmethod
-    def file(file_key: str,
-             title: Optional[str] = None) -> "MessageSegment":
-        return MessageSegment("file", {
-            "file_key": file_key,
-            "title": title,
-        })
-
-    @staticmethod
-    def audio(file_key: str,
-              title: Optional[str] = None,
-              cover_file_key: Optional[str] = None) -> "MessageSegment":
-        return MessageSegment("audio", {
-            "file_key": file_key,
-            "title": title,
-            "cover_file_key": cover_file_key
-        })
+        @param text: 消息内容
+        """
+        return Text.create(text)
 
     @staticmethod
     def KMarkdown(content: str, raw_content: Optional[str] = None) -> "MessageSegment":
@@ -149,31 +94,336 @@ class MessageSegment(BaseMessageSegment["Message"]):
         @param content: KMarkdown消息内容（语法参考：https://developer.kookapp.cn/doc/kmarkdown）
         @param raw_content: （可选）消息段的纯文本内容
         """
-        if raw_content is None:
-            raw_content = ""
-
-        return MessageSegment("kmarkdown", {
-            "content": content,
-            "raw_content": raw_content
-        })
+        return KMarkdown.create(content, raw_content)
 
     @staticmethod
     def Card(content: Any) -> "MessageSegment":
         """
         构造卡片消息
 
-        @param content: KMarkdown消息内容（语法参考：https://developer.kookapp.cn/doc/cardmessage）
+        @param content: 卡片消息内容（语法参考：https://developer.kookapp.cn/doc/cardmessage）
         """
-        if not isinstance(content, str):
-            content = json.dumps(content)
+        return Card.create(content)
 
-        return MessageSegment("card", {
-            "content": content
-        })
+    @staticmethod
+    def image(file_key: str) -> "MessageSegment":
+        return Image.create(file_key)
+
+    @staticmethod
+    def video(file_key: str,
+              title: Optional[str] = None) -> "MessageSegment":
+        return Video.create(file_key, title)
+
+    @staticmethod
+    def audio(file_key: str,
+              title: Optional[str] = None,
+              cover_file_key: Optional[str] = None) -> "MessageSegment":
+        return Audio.create(file_key, title, cover_file_key)
+
+    @staticmethod
+    def file(file_key: str,
+             title: Optional[str] = None) -> "MessageSegment":
+        return File.create(file_key, title)
 
     @staticmethod
     def quote(msg_id: str) -> "MessageSegment":
         return MessageSegment("quote", {
+            "msg_id": msg_id
+        })
+
+
+class ReceivableMessageSegment(MessageSegment):
+    @classmethod
+    def type_code(cls) -> int:
+        """
+        对应开黑啦协议里消息的type属性
+        """
+        return -1
+
+    @classmethod
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        raise NotImplementedError()
+
+
+class SendOnlyMessageSegment(MessageSegment):
+    ...
+
+
+@dataclass
+class Text(ReceivableMessageSegment):
+    if TYPE_CHECKING:
+        class _TextData(TypedDict):
+            text: str
+
+        data: _TextData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 1
+
+    @override
+    def __str__(self) -> str:
+        return self.data["text"]
+
+    @property
+    @override
+    def plain_text(self):
+        return self.data["text"]
+
+    @override
+    def is_text(self) -> bool:
+        return True
+
+    @override
+    async def _serialize_for_send(self) -> Dict:
+        return {"type": self.type_code(), "content": self.data["text"]}
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["content"])
+
+    @classmethod
+    def create(cls, text: str):
+        return cls("text", {"text": text})
+
+
+@dataclass
+class KMarkdown(ReceivableMessageSegment):
+    if TYPE_CHECKING:
+        class _KMarkdownData(TypedDict):
+            content: str
+            raw_content: str
+
+        data: _KMarkdownData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 9
+
+    @override
+    def __str__(self) -> str:
+        return self.data["content"]
+
+    @property
+    def plain_text(self):
+        return self.data["raw_content"]
+
+    @override
+    def is_text(self) -> bool:
+        return True
+
+    @override
+    async def _serialize_for_send(self) -> Dict:
+        return {"type": self.type_code(), "content": self.data["content"]}
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        content = raw_data["content"]
+        raw_content = raw_data["kmarkdown"]["raw_content"]
+
+        # raw_content默认strip掉首尾空格，但是开黑啦本体的聊天界面中不会strip，所以这里还原了
+        unescaped = unescape_kmarkdown(content)
+        is_plain_text = unescaped.strip() == raw_content
+        if is_plain_text:
+            raw_content = unescaped
+
+        return cls.create(content, raw_content)
+
+    @classmethod
+    def create(cls, content: str, raw_content: Optional[str]):
+        if raw_content is None:
+            raw_content = ""
+
+        return cls("kmarkdown", {
+            "content": content,
+            "raw_content": raw_content
+        })
+
+
+@dataclass
+class Card(ReceivableMessageSegment):
+    if TYPE_CHECKING:
+        class _CardData(TypedDict):
+            content: str
+
+        data: _CardData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 10
+
+    @override
+    def __str__(self) -> str:
+        return "[卡片消息]"
+
+    @override
+    async def _serialize_for_send(self) -> Dict:
+        return {"type": self.type_code(), "content": self.data["content"]}
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["content"])
+
+    @classmethod
+    def create(cls, content: Any):
+        if not isinstance(content, str):
+            content = json.dumps(content)
+
+        return cls("card", {
+            "content": content
+        })
+
+
+class Media(ReceivableMessageSegment):
+    if TYPE_CHECKING:
+        class _MediaData(TypedDict):
+            file_key: str
+
+        data: _MediaData
+
+    @override
+    async def _serialize_for_send(self) -> Dict:
+        return {"type": self.type_code(), "content": self.data["file_key"]}
+
+
+class Image(Media):
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 2
+
+    @override
+    def __str__(self) -> str:
+        return "[图片]"
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["attachments"]["url"])
+
+    @classmethod
+    def create(cls, file_key: str):
+        return cls("image", {
+            "file_key": file_key
+        })
+
+
+class Video(Media):
+    if TYPE_CHECKING:
+        class _VideoData(Media._MediaData):
+            title: Optional[str]
+
+        data: _VideoData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 3
+
+    @override
+    def __str__(self) -> str:
+        return "[视频]"
+
+    @classmethod
+    def create(cls, file_key: str, title: Optional[str] = None):
+        return cls("video", {
+            "file_key": file_key,
+            "title": title
+        })
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+
+
+class Audio(Media):
+    if TYPE_CHECKING:
+        class _AudioData(Media._MediaData):
+            title: Optional[str]
+            cover_file_key: Optional[str]
+
+        data: _AudioData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 8
+
+    @override
+    def __str__(self) -> str:
+        return "[音频]"
+
+    async def _serialize_for_send(self) -> Dict:
+        # 转化为卡片消息发送
+        return await _convert_to_card_message(Message(self))._serialize_for_send()
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["attachments"]["url"])
+
+    @classmethod
+    def create(cls, file_key: str,
+               title: Optional[str] = None,
+               cover_file_key: Optional[str] = None):
+        return cls("audio", {
+            "file_key": file_key,
+            "title": title,
+            "cover_file_key": cover_file_key
+        })
+
+
+class File(Media):
+    if TYPE_CHECKING:
+        class _FileData(Media._MediaData):
+            title: Optional[str]
+
+        data: _FileData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 4
+
+    @override
+    def __str__(self) -> str:
+        return "[文件]"
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: Dict) -> Self:
+        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+
+    @classmethod
+    def create(cls, file_key: str,
+               title: Optional[str] = None):
+        return cls("file", {
+            "file_key": file_key,
+            "title": title
+        })
+
+
+class Quote(SendOnlyMessageSegment):
+    if TYPE_CHECKING:
+        class _QuoteData(TypedDict):
+            msg_id: str
+
+        data: _QuoteData
+
+    @override
+    def __str__(self) -> str:
+        return "[引用消息]"
+
+    @classmethod
+    def create(cls, msg_id: str):
+        return cls("quote", {
             "msg_id": msg_id
         })
 
@@ -184,25 +434,16 @@ class Message(BaseMessage[MessageSegment]):
     """
 
     @classmethod
-    @overrides(BaseMessage)
+    @override
     def get_segment_class(cls) -> Type[MessageSegment]:
         return MessageSegment
 
     @staticmethod
-    @overrides(BaseMessage)
-    def _construct(
-            msg: Union[str, Mapping, Iterable[Mapping]]
-    ) -> Iterable[MessageSegment]:
-        if isinstance(msg, Mapping):
-            msg = cast(Mapping[str, Any], msg)
-            yield MessageSegment(msg["type"], msg.get("content") or {})
-        elif isinstance(msg, Iterable) and not isinstance(msg, str):
-            for seg in msg:
-                yield MessageSegment(seg["type"], seg.get("content") or {})
-        elif isinstance(msg, str):
-            yield MessageSegment("text", {"content": msg})
+    @override
+    def _construct(msg: str) -> Iterable[MessageSegment]:
+        yield Text(msg)
 
-    @overrides(BaseMessage)
+    @override
     def extract_plain_text(self) -> str:
         return "".join(seg.plain_text for seg in self)
 
@@ -212,25 +453,26 @@ class Message(BaseMessage[MessageSegment]):
         while index < len(self):
             prev = self[index - 1]
             cur = self[index]
-            if prev.type == "text" and cur.type == "text":
-                self[index - 1] = MessageSegment.text(prev.data["content"] + cur.data["content"])
+
+            if isinstance(prev, Text) and isinstance(cur, Text):
+                self[index - 1] = Text.create(prev.data["text"] + cur.data["text"])
                 del self[index]
-            elif prev.type == "kmarkdown" and cur.type == "kmarkdown":
-                self[index - 1] = MessageSegment.KMarkdown(
+            elif isinstance(prev, KMarkdown) and isinstance(cur, KMarkdown):
+                self[index - 1] = KMarkdown.create(
                     prev.data["content"] + cur.data["content"],
                     prev.data["raw_content"] + cur.data["raw_content"],
                 )
                 del self[index]
-            elif prev.type == "kmarkdown" and cur.type == "text":
-                self[index - 1] = MessageSegment.KMarkdown(
-                    prev.data["content"] + escape_kmarkdown(cur.data["content"]),
-                    prev.data["raw_content"] + cur.data["content"],
+            elif isinstance(prev, KMarkdown) and isinstance(cur, Text):
+                self[index - 1] = KMarkdown.create(
+                    prev.data["content"] + escape_kmarkdown(cur.data["text"]),
+                    prev.data["raw_content"] + cur.data["text"],
                 )
                 del self[index]
-            elif prev.type == "text" and cur.type == "kmarkdown":
+            elif isinstance(prev, Text) and isinstance(cur, KMarkdown):
                 self[index - 1] = MessageSegment.KMarkdown(
-                    escape_kmarkdown(prev.data["content"]) + cur.data["content"],
-                    prev.data["content"] + cur.data["raw_content"],
+                    escape_kmarkdown(prev.data["text"]) + cur.data["content"],
+                    prev.data["text"] + cur.data["raw_content"],
                 )
                 del self[index]
             else:
@@ -242,33 +484,33 @@ def _convert_to_card_message(msg: Message) -> MessageSegment:
     modules = []
 
     for seg in msg:
-        if seg.type == 'card':
+        if isinstance(seg, Card):
             if len(modules) != 0:
                 cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
                 modules = []
             cards.extend(json.loads(seg.data['content']))
-        elif seg.type == "text":
+        elif isinstance(seg, Text):
             modules.append(
                 {
                     "type": "section",
-                    "text": {"type": "plain-text", "content": seg.data["content"]},
+                    "text": {"type": "plain-text", "content": seg.data["text"]},
                 }
             )
-        elif seg.type == "kmarkdown":
+        elif isinstance(seg, KMarkdown):
             modules.append(
                 {
                     "type": "section",
                     "text": {"type": "kmarkdown", "content": seg.data["content"]},
                 }
             )
-        elif seg.type == "image":
+        elif isinstance(seg, Image):
             modules.append(
                 {
                     "type": "container",
                     "elements": [{"type": "image", "src": seg.data["file_key"]}],
                 }
             )
-        elif seg.type in ("audio", "video", "file"):
+        elif isinstance(seg, (Audio, Video, File)):
             mod = {
                 "type": seg.type,
                 "src": seg.data["file_key"],
@@ -284,7 +526,7 @@ def _convert_to_card_message(msg: Message) -> MessageSegment:
     if len(modules) != 0:
         cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
 
-    return MessageSegment.Card(cards)
+    return Card.create(cards)
 
 
 @dataclass
@@ -294,31 +536,48 @@ class MessageSerializer:
     """
     message: Message
 
-    def serialize(self, for_send: bool = True) -> Tuple[int, str]:
+    async def serialize(self) -> Dict:
+        serialized_data = {}
+
+        # quote
+        quote = self.message.get("quote")
+        if len(quote) > 0:
+            self.message = self.message.exclude("quote")
+            serialized_data["quote"] = cast(Quote, quote[-1]).data["msg_id"]
+
+        # 大于一段时，先尝试合并text与kmarkdown
         if len(self.message) != 1:
             self.message = self.message.copy()
             self.message.reduce()
 
-            if len(self.message) != 1:
-                # 转化为卡片消息发送
-                return MessageSerializer(Message(_convert_to_card_message(self.message))).serialize()
-
-        msg_type = self.message[0].type
-        msg_type_code = msg_type_map[msg_type]
-        # bot 发送消息只支持"text", "kmarkdown", "card"
-        # 经测试还支持"image", "video", "file"
-        if msg_type in ("text", "kmarkdown", "card"):
-            return msg_type_code, self.message[0].data['content']
-        elif msg_type in ("image", "video", "file"):
-            return msg_type_code, self.message[0].data['file_key']
-        elif msg_type == "audio":
-            if not for_send:
-                return msg_type_code, self.message[0].data['file_key']
-            else:
-                # 转化为卡片消息发送
-                return MessageSerializer(Message(_convert_to_card_message(self.message))).serialize()
+        # 文字与媒体混发时，转化为卡片消息发送
+        if len(self.message) != 1:
+            card_msg = Message(_convert_to_card_message(self.message))
+            serialized_data = {
+                **serialized_data,
+                **(await MessageSerializer(card_msg).serialize())
+            }
         else:
-            raise UnsupportedMessageType(msg_type)
+            serialized_data = {
+                **serialized_data,
+                **(await self.message[0]._serialize_for_send())
+            }
+        return serialized_data
+
+
+_msg_type_map = {
+    Text: Text.type_code(),
+    Image: Image.type_code(),
+    Video: Video.type_code(),
+    File: File.type_code(),
+    Audio: Audio.type_code(),
+    KMarkdown: KMarkdown.type_code(),
+    Card: Card.type_code(),
+}
+
+_rev_msg_type_map = {}
+for msg_type, code in _msg_type_map.items():
+    _rev_msg_type_map[code] = msg_type
 
 
 @dataclass
@@ -330,18 +589,10 @@ class MessageDeserializer:
     data: Dict
 
     def __post_init__(self):
-        self.type = rev_msg_type_map.get(self.type_code, "")
+        self.type = _rev_msg_type_map.get(self.type_code, "")
 
     def deserialize(self) -> Message:
-        if self.type == "text":
-            return Message(MessageSegment.text(self.data["content"]))
-        elif self.type == "image":
-            return Message(MessageSegment.image(self.data["content"]))
-        elif self.type == "video":
-            return Message(MessageSegment.video(self.data["attachments"]["url"]))
-        elif self.type == "file":
-            return Message(MessageSegment.file(self.data["attachments"]["url"]))
-        elif self.type == "kmarkdown":
+        if self.type == KMarkdown:
             content = self.data["content"]
             raw_content = self.data["kmarkdown"]["raw_content"]
 
@@ -357,7 +608,5 @@ class MessageDeserializer:
                 return Message(MessageSegment.text(raw_content))
             else:
                 return Message(MessageSegment.KMarkdown(content, raw_content))
-        elif self.type == "card":
-            return Message(MessageSegment.Card(self.data["content"]))
         else:
-            return Message(MessageSegment(self.type, self.data))
+            return Message(self.type._deserialize(self.data))
