@@ -9,7 +9,7 @@ from nonebot.typing import overrides
 
 from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
-from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
+from .message import Message, MessageSegment, MessageSerializer, Text, Mention
 from .utils import log
 
 if TYPE_CHECKING:

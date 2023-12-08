@@ -15,13 +15,12 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 nonebot2 = "^2.0.0"
+typing-extensions = "^4.8.0"
 
 #[[tool.poetry.source]]
 #name = "aliyun"
 #url = "https://mirrors.aliyun.com/pypi/simple/"
 #default = true
-marko = "^2.0.2"
-typing-extensions = "^4.8.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
