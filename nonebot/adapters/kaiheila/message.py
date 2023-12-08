@@ -48,8 +48,8 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         """
         return -1
 
-    async def _serialize_for_send(self, bot: Bot) -> Dict:
-        raise NotImplementedError()
+    async def _serialize_for_send(self, bot: Bot) -> Optional[Dict]:
+        return None
 
     def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
         """
@@ -70,14 +70,6 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     @override
     def is_text(self) -> bool:
         return False
-
-    @staticmethod
-    def at(user_id: str) -> "KMarkdown":
-        warnings.warn(
-            "用 KMarkdown 语法 (met)用户id/here/all(met) 代替",
-            DeprecationWarning,
-        )
-        return MessageSegment.KMarkdown(f"(met){user_id}(met)", "@" + user_id)
 
     @staticmethod
     def text(text: str) -> "Text":
@@ -151,11 +143,55 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     def quote(msg_id: str) -> "Quote":
         return Quote.create(msg_id)
 
+    @staticmethod
+    def at(user_id: str) -> "Mention":
+        warnings.warn(
+            "用 MessageSegment.mention 代替",
+            DeprecationWarning,
+        )
+        return MessageSegment.mention(user_id)
+
+    @staticmethod
+    def mention(user_id: str) -> "Mention":
+        return Mention.create(user_id)
+
+    @staticmethod
+    def mention_role(role_id: str) -> "MentionRole":
+        return MentionRole.create(role_id)
+
+    @staticmethod
+    def mention_all() -> "MentionAll":
+        return MentionAll.create()
+
+    @staticmethod
+    def mention_here() -> "MentionHere":
+        return MentionHere.create()
+
 
 class ReceivableMessageSegment(MessageSegment):
     @classmethod
     def _deserialize(cls, raw_data: Dict) -> Self:
         raise NotImplementedError()
+
+
+class VirtualMessageSegment(MessageSegment):
+    """
+    虚拟消息段。本来不在消息中，但是从事件中提取出来的消息段。方便用户处理特殊元素。
+
+    比如原始消息是[KMarkdown: /command (met)123(met)]的话，就变成[KMarkdown: /command (met)123(met)][Mention: 123]
+    """
+
+    if TYPE_CHECKING:
+        class _VirtualData(TypedDict):
+            for_send: bool
+            """
+            发送时，若for_send为True，则会构造同等的KMakrdown并发送，否则忽略该消息段。
+            """
+
+        data: _VirtualData
+
+    def _actual_seg(self) -> Optional[MessageSegment]:
+        return None
 
 
 class SendOnlyMessageSegment(MessageSegment):
@@ -247,7 +283,7 @@ class KMarkdown(ReceivableMessageSegment):
         return cls.create(content, raw_content)
 
     @classmethod
-    def create(cls, content: str, raw_content: Optional[str]) -> "KMarkdown":
+    def create(cls, content: str, raw_content: Optional[str] = None) -> "KMarkdown":
         if raw_content is None:
             raw_content = ""
 
@@ -565,9 +601,9 @@ class LocalAudio(LocalMedia):
         return cls("local_audio", data)
 
 
-class Quote(SendOnlyMessageSegment):
+class Quote(VirtualMessageSegment):
     if TYPE_CHECKING:
-        class _QuoteData(TypedDict):
+        class _QuoteData(VirtualMessageSegment._VirtualData):
             msg_id: str
 
         data: _QuoteData
@@ -579,8 +615,99 @@ class Quote(SendOnlyMessageSegment):
     @classmethod
     def create(cls, msg_id: str) -> "Quote":
         return cls("quote", {
-            "msg_id": msg_id
+            "msg_id": msg_id,
+            "for_send": True
         })
+
+
+class Mention(VirtualMessageSegment):
+    if TYPE_CHECKING:
+        class _MentionData(VirtualMessageSegment._VirtualData):
+            user_id: str
+
+        data: _MentionData
+
+    @override
+    def __str__(self) -> str:
+        return f"@{self.data['user_id']}"
+
+    @override
+    def _actual_seg(self) -> KMarkdown:
+        return KMarkdown.create(
+            f"(met){self.data['user_id']}(met)",
+            str(self)
+        )
+
+    @classmethod
+    def create(cls, user_id: str) -> "Mention":
+        return cls("mention", {
+            "user_id": user_id,
+            "for_send": True
+        })
+
+
+class MentionRole(VirtualMessageSegment):
+    if TYPE_CHECKING:
+        class _MentionData(VirtualMessageSegment._VirtualData):
+            role_id: str
+            role_name: Optional[str]
+
+        data: _MentionData
+
+    @override
+    def __str__(self) -> str:
+        if self.data['role_name']:
+            return f"@{self.data['role_name']}"
+        else:
+            return f"@角色{self.data['role_id']}"
+
+    @override
+    def _actual_seg(self) -> KMarkdown:
+        return KMarkdown.create(
+            f"(rol){self.data['role_id']}(rol)",
+            str(self)
+        )
+
+    @classmethod
+    def create(cls, role_id: str) -> "MentionRole":
+        return cls("mention_role", {
+            "role_id": role_id,
+            "for_send": True
+        })
+
+
+class MentionAll(VirtualMessageSegment):
+    @override
+    def __str__(self) -> str:
+        return f"@全体成员"
+
+    @override
+    def _actual_seg(self) -> KMarkdown:
+        return KMarkdown.create(
+            f"(met)all(met)",
+            str(self)
+        )
+
+    @classmethod
+    def create(cls) -> "MentionAll":
+        return cls("mention_all", {"for_send": True})
+
+
+class MentionHere(VirtualMessageSegment):
+    @override
+    def __str__(self) -> str:
+        return f"@全体在线成员"
+
+    @override
+    def _actual_seg(self) -> KMarkdown:
+        return KMarkdown.create(
+            f"(met)here(met)",
+            str(self)
+        )
+
+    @classmethod
+    def create(cls) -> "MentionHere":
+        return cls("mention_here", {"for_send": None})
 
 
 class Message(BaseMessage[MessageSegment]):
@@ -700,6 +827,17 @@ class MessageSerializer:
             self.message = self.message.exclude("quote")
             serialized_data["quote"] = cast(Quote, quote[-1]).data["msg_id"]
 
+        # 将虚拟消息段转换为真实消息段
+        new_message = Message()
+        for seg in self.message:
+            if isinstance(seg, VirtualMessageSegment):
+                actual = seg._actual_seg() if seg.data["for_send"] else None
+                if actual is not None:
+                    new_message.append(actual)
+            else:
+                new_message.append(seg)
+        self.message = new_message
+
         # 大于一段时，先尝试合并text与kmarkdown
         if len(self.message) != 1:
             self.message = self.message.copy()
@@ -747,6 +885,10 @@ class MessageDeserializer:
         self.type = _rev_msg_type_map.get(self.type_code, "")
 
     def deserialize(self) -> Message:
+        msg = Message()
+
+        # TODO：提取quote
+
         if self.type == KMarkdown:
             content = self.data["content"]
             raw_content = self.data["kmarkdown"]["raw_content"]
@@ -760,8 +902,12 @@ class MessageDeserializer:
             # 如果是KMarkdown消息是纯文本，直接构造纯文本消息
             # 目的是让on_command等依赖__str__的规则能够在消息存在转义字符时正常工作
             if is_plain_text:
-                return Message(MessageSegment.text(raw_content))
+                msg.append(MessageSegment.text(raw_content))
             else:
-                return Message(MessageSegment.KMarkdown(content, raw_content))
+                msg.append(MessageSegment.KMarkdown(content, raw_content))
         else:
-            return Message(self.type._deserialize(self.data))
+            msg.append(self.type._deserialize(self.data))
+
+        # TODO：提取mention
+
+        return msg
