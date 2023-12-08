@@ -9,8 +9,8 @@ from nonebot.typing import overrides
 
 from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
-from .message import Message, MessageSegment, MessageSerializer, Text, Mention
-from .utils import log
+from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
+from .utils import log, escape_kmarkdown
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -59,20 +59,28 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
       * ``bot: Bot``: Bot 对象
       * ``event: Event``: Event 对象
     """
-    if isinstance(event.message[0], Text):
-        first_text = event.message[0].data["text"]
+    nicknames = set(filter(lambda n: n, bot.config.nickname))
+    first_seg = event.message[0]
 
-        nicknames = set(filter(lambda n: n, bot.config.nickname))
-        if nicknames:
-            # check if the user is calling me with my nickname
-            nickname_regex = "|".join(nicknames)
-            m = re.search(rf"^({nickname_regex})([\s,，]*|$)", first_text, re.IGNORECASE)
-            if m:
-                nickname = m.group(1)
+    if isinstance(first_seg, Text):
+        first_text = first_seg.data["text"]
+
+        for nickname in nicknames:
+            if first_text.startswith(nickname):
                 log("DEBUG", f"User is calling me {nickname}")
                 event.to_me = True
-                event.message[0].data["text"] = first_text[m.end():]
-    # TODO: kmarkdown
+                first_seg.data["text"] = first_text.removeprefix(nickname)
+                break
+    elif isinstance(first_seg, KMarkdown):
+        first_text = first_seg.data["raw_content"]
+
+        for nickname in nicknames:
+            if first_text.startswith(nickname):
+                log("DEBUG", f"User is calling me {nickname}")
+                event.to_me = True
+                first_seg.data["raw_content"] = first_text.removeprefix(nickname)
+                first_seg.data["content"] = first_seg.data["content"].removeprefix(escape_kmarkdown(nickname))
+                break
 
 
 async def send(
