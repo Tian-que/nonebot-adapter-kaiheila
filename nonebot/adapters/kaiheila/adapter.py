@@ -11,18 +11,19 @@ from nonebot.drivers import (
     Driver,
     Request,
     WebSocket,
-    ForwardDriver,
+    HTTPClientMixin,
+    WebSocketClientMixin,
 )
 from nonebot.internal.driver import Response
-from nonebot.typing import overrides
 from nonebot.utils import escape_tag
 from pydantic import parse_obj_as
 from pygtrie import StringTrie
+from typing_extensions import override
 
 from . import event
 from .api.handle import get_api_method, get_api_restype
 from .bot import Bot
-from .config import Config as KaiheilaConfig
+from .config import Config as KaiheilaConfig, BotConfig
 from .event import *
 from .event import OriginEvent
 from .exception import ApiNotAvailable, ReconnectError, TokenError, UnauthorizedException, RateLimitException, \
@@ -42,34 +43,39 @@ class Adapter(BaseAdapter):
             continue
         event_models["." + model.__event__] = model
 
-    @overrides(BaseAdapter)
+    @override
     def __init__(self, driver: Driver, **kwargs: Any):
         super().__init__(driver, **kwargs)
         self.kaiheila_config: KaiheilaConfig = KaiheilaConfig(**self.config.dict())
-        self.api_root = f'https://www.kaiheila.cn/api/v3/'
+        self.api_root = "https://www.kaiheila.cn/api/v3/"
         self.connections: Dict[str, WebSocket] = {}
         self.tasks: List[asyncio.Task] = []
         self.setup()
 
     # OK
     @classmethod
-    @overrides(BaseAdapter)
+    @override
     def get_name(cls) -> str:
         return "Kaiheila"
 
     # OK
     def setup(self) -> None:
-        if not isinstance(self.driver, ForwardDriver):
-            log(
-                "WARNING",
-                f"Current driver {self.config.driver} don't support forward connections! Ignored",
+        if not isinstance(self.driver, HTTPClientMixin):
+            raise RuntimeError(
+                f"Current driver {self.config.driver} does not support "
+                "http client requests! "
+                f"{self.get_name()} Adapter need a HTTPClient Driver to work."
             )
-        else:
-            self.driver.on_startup(self.start_forward)
-            self.driver.on_shutdown(self.stop_forward)
-            self.driver.on_bot_connect(self.start_heartbeat)
+        if not isinstance(self.driver, WebSocketClientMixin):
+            raise RuntimeError(
+                f"Current driver {self.config.driver} does not support "
+                "websocket client! "
+                f"{self.get_name()} Adapter need a WebSocketClient Driver to work."
+            )
+        self.driver.on_startup(self.start_forward)
+        self.driver.on_shutdown(self.stop_forward)
 
-    @overrides(BaseAdapter)
+    @override
     async def request(self, setup: Request) -> Response:
         try:
             response = await super().request(setup)
@@ -90,13 +96,13 @@ class Adapter(BaseAdapter):
         except Exception as e:
             raise NetworkError("API request failed") from e
 
-    @overrides(BaseAdapter)
+    @override
     async def _call_api(self, bot: Bot, api: str, **data) -> Any:
         if isinstance(self.driver, ForwardDriver):
             if not self.api_root:
                 raise ApiNotAvailable()
 
-            match = re.findall(r'[A-Z]', api)
+            match = re.findall(r"[A-Z]", api)
             if len(match) > 0:
                 for m in match:
                     api = api.replace(m, "-" + m.lower())
@@ -116,7 +122,7 @@ class Adapter(BaseAdapter):
                            data: Optional[Mapping[str, Any]] = None,
                            token: Optional[str] = None) -> Any:
         log("DEBUG", f"Calling API <y>{api}</y>")
-        data = dict(data) if data is not None else dict()
+        data = dict(data) if data is not None else {}
 
         # 判断 POST 或 GET
         method = get_api_method(api) if not data.get("method") else data.get("method")
@@ -164,51 +170,54 @@ class Adapter(BaseAdapter):
 
     async def _get_gateway(self, token: str) -> URL:
         result = await self._do_call_api("gateway/index",
-                                         data={'compress': 1 if self.kaiheila_config.compress else 0},
+                                         data={"compress": 1 if self.kaiheila_config.compress else 0},
                                          token=token)
         return result.url
 
     async def start_forward(self) -> None:
         for bot in self.kaiheila_config.kaiheila_bots:
-            bot_token = bot.token
-            try:
-                url = await self._get_gateway(bot_token)
-                ws_url = URL(url)
-                self.tasks.append(asyncio.create_task(self._forward_ws(ws_url, bot_token)))
-            except TokenError as e:
-                log(
-                    "ERROR",
-                    f"<r><bg #f8bbd0>Error token {bot_token} ,"
-                    "please get the new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
-                    e,
-                )
-            except Exception as e:
-                log(
-                    "ERROR",
-                    f"<r><bg #f8bbd0>Error {bot_token} "
-                    "to get the Gateway</bg #f8bbd0></r>",
-                    e,
-                )
+            self.tasks.append(asyncio.create_task(self._forward_ws(bot)))
 
     async def stop_forward(self) -> None:
         for task in self.tasks:
             if not task.done():
                 task.cancel()
 
-        await asyncio.gather(*self.tasks, return_exceptions=True)
+        await asyncio.gather(
+            *(asyncio.wait_for(task, timeout=10) for task in self.tasks),
+            return_exceptions=True
+        )
 
-    async def _forward_ws(self, url: URL, bot_token: str) -> None:
-        headers = {}
-        if bot_token:
-            headers[
-                "Authorization"
-            ] = f"Bot {bot_token}"
-        request = Request("GET", url, headers=headers)
-
+    async def _forward_ws(self, bot_config: BotConfig) -> None:
         bot: Optional[Bot] = None
+
+        heartbeat_task: Optional[asyncio.Task] = None
 
         while True:
             try:
+                try:
+                    url = URL(await self._get_gateway(bot_config.token))
+                except TokenError as e:
+                    log(
+                        "ERROR",
+                        f"<r><bg #f8bbd0>Token {escape_tag(bot_config.token)} was invalid. "
+                        "Please get a new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
+                        e,
+                    )
+                    return
+                except Exception as e:
+                    log(
+                        "ERROR",
+                        f"<r><bg #f8bbd0>Failed to get the Gateway URL for token {escape_tag(bot_config.token)}. "
+                        "Trying to reconnect...</bg #f8bbd0></r>",
+                        e,
+                    )
+
+                headers = {}
+                if bot_config.token:
+                    headers["Authorization"] = f"Bot {bot_config.token}"
+                request = Request("GET", url, headers=headers)
+
                 async with self.websocket(request) as ws:
                     log(
                         "DEBUG",
@@ -229,11 +238,14 @@ class Adapter(BaseAdapter):
                                         or event.sub_type != "connect"
                                 ):
                                     continue
-                                bot_info = await self._get_bot_info(bot_token)
+                                bot_info = await self._get_bot_info(bot_config.token)
                                 self_id = bot_info.id_
-                                bot = Bot(self, self_id, bot_info.username, bot_token)
+                                bot = Bot(self, self_id, bot_info.username, bot_config.token)
                                 self.connections[self_id] = ws
                                 self.bot_connect(bot)
+
+                                # start heartbeat
+                                heartbeat_task = asyncio.create_task(self.start_heartbeat(bot))
 
                                 log(
                                     "INFO",
@@ -242,12 +254,11 @@ class Adapter(BaseAdapter):
                             asyncio.create_task(bot.handle_event(event))
                     except ReconnectError as e:
                         log(
-                            "ERROR",
-                            "<r><bg #f8bbd0>The current connection has expired"
-                            f"for bot {escape_tag(bot.self_id)}. Trying to reconnect...</bg #f8bbd0></r>",
+                            "INFO",
+                            "<r><bg #f8bbd0>Server requests reconnect"
+                            f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}.</bg #f8bbd0></r>",
                             e,
                         )
-                        break
                     except TokenError:
                         raise
                     except Exception as e:
@@ -257,16 +268,17 @@ class Adapter(BaseAdapter):
                             f"{escape_tag(str(url))}. Trying to reconnect...</bg #f8bbd0></r>",
                             e,
                         )
-                        break
                     finally:
+                        if heartbeat_task:
+                            heartbeat_task.cancel()
+                            heartbeat_task = None
+
                         try:
                             await ws.close()
                         except Exception:
                             pass
+
                         if bot:
-                            # 重新获取 gateway
-                            url = await self._get_gateway(token=bot_token)
-                            request = Request("GET", url, headers=headers)
                             # 清空本地的 sn 计数
                             ResultStore.set_sn(bot.self_id, 0)
                             self.connections.pop(bot.self_id, None)
@@ -290,11 +302,20 @@ class Adapter(BaseAdapter):
         while self.connections.get(bot.self_id):
             if self.connections.get(bot.self_id).closed:
                 break
-            await self.connections.get(bot.self_id).send(json.dumps({
-                "s": 2,
-                "sn": ResultStore.get_sn(bot.self_id)  # 客户端目前收到的最新的消息 sn
-            }))
-            await asyncio.sleep(26)
+            try:
+                await self.connections.get(bot.self_id).send(json.dumps({
+                    "s": 2,
+                    "sn": ResultStore.get_sn(bot.self_id)  # 客户端目前收到的最新的消息 sn
+                }))
+                await asyncio.sleep(26)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log("ERROR",
+                    "<r><bg #f8bbd0>Error while sending heartbeat for bot"
+                    f"{escape_tag(bot.self_id)}. Will retry after 1s ...</bg #f8bbd0></r>",
+                    e)
+                await asyncio.sleep(1)
 
     @classmethod
     def json_to_event(
@@ -303,27 +324,27 @@ class Adapter(BaseAdapter):
         if not isinstance(json_data, dict):
             return None
 
-        signal = json_data['s']
+        signal = json_data["s"]
 
         if signal == SignalTypes.HELLO:
-            if json_data['d']['code'] == 0:
-                data = json_data['d']
+            if json_data["d"]["code"] == 0:
+                data = json_data["d"]
                 data["post_type"] = "meta_event"
-                data["sub_type"] = 'connect'
+                data["sub_type"] = "connect"
                 data["meta_event_type"] = "lifecycle"
                 return LifecycleMetaEvent.parse_obj(data)
-            elif json_data['d']['code'] == 40103:
+            elif json_data["d"]["code"] == 40103:
                 raise ReconnectError
-            elif json_data['d']['code'] == 40101:
+            elif json_data["d"]["code"] == 40101:
                 raise TokenError("无效的 token")
-            elif json_data['d']['code'] == 40102:
+            elif json_data["d"]["code"] == 40102:
                 raise TokenError("token 验证失败")
         elif signal == SignalTypes.PONG:
-            data = dict()
+            data = {}
             data["post_type"] = "meta_event"
             data["meta_event_type"] = "heartbeat"
             log(
-                "DEBUG",
+                "TRACE",
                 f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",
             )
             return HeartbeatMetaEvent.parse_obj(data)
@@ -340,34 +361,34 @@ class Adapter(BaseAdapter):
             return
 
         try:
-            data = json_data['d']
+            data = json_data["d"]
             extra = data.get("extra")
 
-            data['self_id'] = self_id
-            data['group_id'] = data.get('target_id')
-            data['time'] = data.get('msg_timestamp')
-            data['user_id'] = data.get('author_id') if data.get('author_id') != "1" else "SYSTEM"
+            data["self_id"] = self_id
+            data["group_id"] = data.get("target_id")
+            data["time"] = data.get("msg_timestamp")
+            data["user_id"] = data.get("author_id") if data.get("author_id") != "1" else "SYSTEM"
 
-            if data['type'] == EventTypes.sys:
-                data['post_type'] = "notice"
-                data['notice_type'] = extra.get('type')
+            if data["type"] == EventTypes.sys:
+                data["post_type"] = "notice"
+                data["notice_type"] = extra.get("type")
                 message = Message.template("{}").format(data["content"])
-                data['message'] = message
+                data["message"] = message
                 # data['notice_type'] = data.get('channel_type').lower()
                 # data['notice_type'] = 'private' if data['notice_type'] == 'person' else data['notice_type']
             else:
-                data['post_type'] = "message"
-                data['sub_type'] = [i.name.lower() for i in EventTypes if i.value == extra.get('type')][0]
-                data['message_type'] = data.get('channel_type').lower()
-                data['message_type'] = 'private' if data['message_type'] == 'person' else data['message_type']
-                data['extra']['content'] = data.get('content')
-                data['event'] = data['extra']
+                data["post_type"] = "message"
+                data["sub_type"] = [i.name.lower() for i in EventTypes if i.value == extra.get("type")][0]
+                data["message_type"] = data.get("channel_type").lower()
+                data["message_type"] = "private" if data["message_type"] == "person" else data["message_type"]
+                data["extra"]["content"] = data.get("content")
+                data["event"] = data["extra"]
 
-            data['message_id'] = data.get('msg_id')
-            post_type = data['post_type']
+            data["message_id"] = data.get("msg_id")
+            post_type = data["post_type"]
             detail_type = data.get(f"{post_type}_type")
             detail_type = f".{detail_type}" if detail_type else ""
-            sub_type = data.get('sub_type')
+            sub_type = data.get("sub_type")
             sub_type = f".{sub_type}" if sub_type else ""
 
             models = cls.get_event_model(post_type + detail_type + sub_type)
