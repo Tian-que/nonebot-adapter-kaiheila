@@ -1,16 +1,21 @@
 import json
 import warnings
 from abc import ABC
-from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Union, Optional, TypedDict, TYPE_CHECKING, cast, Callable
-from typing_extensions import override, Self
+from dataclasses import dataclass
+from collections.abc import Iterable
+from typing_extensions import Self, override
+from typing import TYPE_CHECKING, Any, Union, Callable, Optional, TypedDict, cast
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
-from .exception import UnsupportedMessageType, UnsupportedMessageOperation, KaiheilaAdapterException
-from .utils import unescape_kmarkdown, escape_kmarkdown, BytesReadable
+
+from .utils import BytesReadable, escape_kmarkdown, unescape_kmarkdown
+from .exception import (
+    UnsupportedMessageType,
+    KaiheilaAdapterException,
+    UnsupportedMessageOperation,
+)
 
 if TYPE_CHECKING:
     from .bot import Bot
@@ -50,7 +55,9 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     async def _serialize_for_send(self, bot: "Bot") -> Optional[dict]:
         return None
 
-    def conduct(self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]) -> "MessageSegment":
+    def conduct(
+        self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]
+    ) -> "MessageSegment":
         """
         连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
         """
@@ -107,35 +114,37 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return LocalImage.create(file)
 
     @staticmethod
-    def video(file_key: str,
-              title: Optional[str] = None) -> "Video":
+    def video(file_key: str, title: Optional[str] = None) -> "Video":
         return Video.create(file_key, title)
 
     @staticmethod
-    def local_video(file: Union[str, Path, BytesReadable, bytes],
-                    title: Optional[str] = None) -> "LocalVideo":
+    def local_video(
+        file: Union[str, Path, BytesReadable, bytes], title: Optional[str] = None
+    ) -> "LocalVideo":
         return LocalVideo.create(file, title)
 
     @staticmethod
-    def audio(file_key: str,
-              title: Optional[str] = None,
-              cover_file_key: Optional[str] = None) -> "MessageSegment":
+    def audio(
+        file_key: str, title: Optional[str] = None, cover_file_key: Optional[str] = None
+    ) -> "MessageSegment":
         return Audio.create(file_key, title, cover_file_key)
 
     @staticmethod
-    def local_audio(file: Union[str, Path, BytesReadable, bytes],
-                    title: Optional[str] = None,
-                    cover: Union[None, str, Path, BytesReadable, bytes] = None) -> "LocalAudio":
+    def local_audio(
+        file: Union[str, Path, BytesReadable, bytes],
+        title: Optional[str] = None,
+        cover: Union[None, str, Path, BytesReadable, bytes] = None,
+    ) -> "LocalAudio":
         return LocalAudio.create(file, title, cover)
 
     @staticmethod
-    def file(file_key: str,
-             title: Optional[str] = None) -> "File":
+    def file(file_key: str, title: Optional[str] = None) -> "File":
         return File.create(file_key, title)
 
     @staticmethod
-    def local_file(file: Union[str, Path, BytesReadable, bytes],
-                   title: Optional[str] = None) -> "LocalFile":
+    def local_file(
+        file: Union[str, Path, BytesReadable, bytes], title: Optional[str] = None
+    ) -> "LocalFile":
         return LocalFile.create(file, title)
 
     @staticmethod
@@ -180,6 +189,7 @@ class VirtualMessageSegment(MessageSegment):
 
 class Text(ReceivableMessageSegment):
     if TYPE_CHECKING:
+
         class _TextData(TypedDict):
             text: str
 
@@ -223,6 +233,7 @@ class Text(ReceivableMessageSegment):
 
 class KMarkdown(ReceivableMessageSegment):
     if TYPE_CHECKING:
+
         class _KMarkdownData(TypedDict):
             content: str
             raw_content: str
@@ -269,14 +280,12 @@ class KMarkdown(ReceivableMessageSegment):
         if raw_content is None:
             raw_content = ""
 
-        return cls("kmarkdown", {
-            "content": content,
-            "raw_content": raw_content
-        })
+        return cls("kmarkdown", {"content": content, "raw_content": raw_content})
 
 
 class Card(ReceivableMessageSegment):
     if TYPE_CHECKING:
+
         class _CardData(TypedDict):
             content: str
 
@@ -305,13 +314,12 @@ class Card(ReceivableMessageSegment):
         if not isinstance(content, str):
             content = json.dumps(content)
 
-        return cls("card", {
-            "content": content
-        })
+        return cls("card", {"content": content})
 
 
 class Media(ReceivableMessageSegment):
     if TYPE_CHECKING:
+
         class _MediaData(TypedDict):
             file_key: str
 
@@ -339,13 +347,12 @@ class Image(Media):
 
     @classmethod
     def create(cls, file_key: str) -> "Image":
-        return cls("image", {
-            "file_key": file_key
-        })
+        return cls("image", {"file_key": file_key})
 
 
 class Video(Media):
     if TYPE_CHECKING:
+
         class _VideoData(Media._MediaData):
             title: Optional[str]
 
@@ -363,18 +370,18 @@ class Video(Media):
     @classmethod
     @override
     def _deserialize(cls, raw_data: dict) -> Self:
-        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+        return cls.create(
+            raw_data["attachments"]["url"], raw_data["attachments"]["name"]
+        )
 
     @classmethod
     def create(cls, file_key: str, title: Optional[str] = None) -> "Video":
-        return cls("video", {
-            "file_key": file_key,
-            "title": title
-        })
+        return cls("video", {"file_key": file_key, "title": title})
 
 
 class Audio(Media):
     if TYPE_CHECKING:
+
         class _AudioData(Media._MediaData):
             title: Optional[str]
             cover_file_key: Optional[str]
@@ -397,21 +404,26 @@ class Audio(Media):
     @classmethod
     @override
     def _deserialize(cls, raw_data: dict) -> Self:
-        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+        return cls.create(
+            raw_data["attachments"]["url"], raw_data["attachments"]["name"]
+        )
 
     @classmethod
-    def create(cls, file_key: str,
-               title: Optional[str] = None,
-               cover_file_key: Optional[str] = None) -> "Audio":
-        return cls("audio", {
-            "file_key": file_key,
-            "title": title,
-            "cover_file_key": cover_file_key
-        })
+    def create(
+        cls,
+        file_key: str,
+        title: Optional[str] = None,
+        cover_file_key: Optional[str] = None,
+    ) -> "Audio":
+        return cls(
+            "audio",
+            {"file_key": file_key, "title": title, "cover_file_key": cover_file_key},
+        )
 
 
 class File(Media):
     if TYPE_CHECKING:
+
         class _FileData(Media._MediaData):
             title: Optional[str]
 
@@ -433,19 +445,18 @@ class File(Media):
     @classmethod
     @override
     def _deserialize(cls, raw_data: dict) -> Self:
-        return cls.create(raw_data["attachments"]["url"], raw_data["attachments"]["name"])
+        return cls.create(
+            raw_data["attachments"]["url"], raw_data["attachments"]["name"]
+        )
 
     @classmethod
-    def create(cls, file_key: str,
-               title: Optional[str] = None) -> "File":
-        return cls("file", {
-            "file_key": file_key,
-            "title": title
-        })
+    def create(cls, file_key: str, title: Optional[str] = None) -> "File":
+        return cls("file", {"file_key": file_key, "title": title})
 
 
 class LocalMedia(VirtualMessageSegment):
     if TYPE_CHECKING:
+
         class _LocalMediaData(TypedDict):
             content: Optional[bytes]
             title: Optional[str]
@@ -457,12 +468,15 @@ class LocalMedia(VirtualMessageSegment):
         if self.data["file"] is None and self.data["content"] is None:
             raise KaiheilaAdapterException("file_path 与 content 均为 None")
 
-        file_key = await bot.upload_file(self.data["content"] or self.data["file"], self.data["title"])
+        file_key = await bot.upload_file(
+            self.data["content"] or self.data["file"], self.data["title"]
+        )
         return file_key
 
     @classmethod
-    def _handle_file(cls, file: Union[str, Path, BytesReadable, bytes],
-                     title: Optional[str] = None) -> "LocalMedia._LocalMediaData":
+    def _handle_file(
+        cls, file: Union[str, Path, BytesReadable, bytes], title: Optional[str] = None
+    ) -> "LocalMedia._LocalMediaData":
         data = {"title": title, "content": None, "file": None}
 
         if isinstance(file, BytesReadable):
@@ -514,8 +528,9 @@ class LocalVideo(LocalMedia):
         return Video.create(file_key, self.data["title"])
 
     @classmethod
-    def create(cls, file: Union[str, Path, BytesReadable, bytes],
-               title: Optional[str] = None) -> "LocalVideo":
+    def create(
+        cls, file: Union[str, Path, BytesReadable, bytes], title: Optional[str] = None
+    ) -> "LocalVideo":
         data = cls._handle_file(file, title)
         return cls("local_video", data)
 
@@ -536,14 +551,18 @@ class LocalFile(LocalMedia):
         return File.create(file_key, self.data["title"])
 
     @classmethod
-    def create(cls, file: Union[str, Path, BytesReadable, bytes],
-               filename: Optional[str] = None) -> "LocalFile":
+    def create(
+        cls,
+        file: Union[str, Path, BytesReadable, bytes],
+        filename: Optional[str] = None,
+    ) -> "LocalFile":
         data = cls._handle_file(file, filename)
         return cls("local_file", data)
 
 
 class LocalAudio(LocalMedia):
     if TYPE_CHECKING:
+
         class _LocalAudioData(LocalMedia._LocalMediaData):
             cover_content: Optional[bytes]
             cover_file: Optional[Path]
@@ -564,21 +583,29 @@ class LocalAudio(LocalMedia):
         file_key = await self._upload(bot)
 
         if self.data["cover_content"] or self.data["cover_file"]:
-            cover_file_key = await bot.upload_file(self.data["cover_content"] or self.data["cover_file"])
+            cover_file_key = await bot.upload_file(
+                self.data["cover_content"] or self.data["cover_file"]
+            )
         else:
             cover_file_key = None
 
         return Audio.create(file_key, self.data["title"], cover_file_key)
 
     @classmethod
-    def create(cls, file: Union[str, Path, BytesReadable, bytes],
-               filename: Optional[str] = None,
-               cover: Union[None, str, Path, BytesReadable, bytes] = None) -> "LocalAudio":
+    def create(
+        cls,
+        file: Union[str, Path, BytesReadable, bytes],
+        filename: Optional[str] = None,
+        cover: Union[None, str, Path, BytesReadable, bytes] = None,
+    ) -> "LocalAudio":
         data = cls._handle_file(file, filename)
 
         if cover is not None:
             cover_data = cls._handle_file(cover)
-            cover_data = {"cover_content": cover_data["content"], "cover_file": cover_data["file"]}
+            cover_data = {
+                "cover_content": cover_data["content"],
+                "cover_file": cover_data["file"],
+            }
         else:
             cover_data = {"cover_content": None, "cover_file": None}
 
@@ -588,6 +615,7 @@ class LocalAudio(LocalMedia):
 
 class Quote(VirtualMessageSegment):
     if TYPE_CHECKING:
+
         class _QuoteData(TypedDict):
             msg_id: str
 
@@ -599,14 +627,12 @@ class Quote(VirtualMessageSegment):
 
     @classmethod
     def create(cls, msg_id: str) -> "Quote":
-        return cls("quote", {
-            "msg_id": msg_id,
-            "for_send": True
-        })
+        return cls("quote", {"msg_id": msg_id, "for_send": True})
 
 
 class Mention(VirtualMessageSegment):
     if TYPE_CHECKING:
+
         class _MentionData(TypedDict):
             user_id: str
             username: Optional[str]
@@ -622,22 +648,18 @@ class Mention(VirtualMessageSegment):
 
     @override
     async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
-        return KMarkdown.create(
-            f"(met){self.data['user_id']}(met)",
-            str(self)
-        )
+        return KMarkdown.create(f"(met){self.data['user_id']}(met)", str(self))
 
     @classmethod
     def create(cls, user_id: str, username: Optional[str] = None) -> "Mention":
-        return cls("mention", {
-            "user_id": user_id,
-            "username": username,
-            "for_send": True
-        })
+        return cls(
+            "mention", {"user_id": user_id, "username": username, "for_send": True}
+        )
 
 
 class MentionRole(VirtualMessageSegment):
     if TYPE_CHECKING:
+
         class _MentionData(TypedDict):
             role_id: str
             name: Optional[str]
@@ -653,18 +675,11 @@ class MentionRole(VirtualMessageSegment):
 
     @override
     async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
-        return KMarkdown.create(
-            f"(rol){self.data['role_id']}(rol)",
-            str(self)
-        )
+        return KMarkdown.create(f"(rol){self.data['role_id']}(rol)", str(self))
 
     @classmethod
     def create(cls, role_id: str, name: Optional[str] = None) -> "MentionRole":
-        return cls("mention_role", {
-            "role_id": role_id,
-            "name": name,
-            "for_send": True
-        })
+        return cls("mention_role", {"role_id": role_id, "name": name, "for_send": True})
 
 
 class MentionAll(VirtualMessageSegment):
@@ -674,10 +689,7 @@ class MentionAll(VirtualMessageSegment):
 
     @override
     async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
-        return KMarkdown.create(
-            "(met)all(met)",
-            str(self)
-        )
+        return KMarkdown.create("(met)all(met)", str(self))
 
     @classmethod
     def create(cls) -> "MentionAll":
@@ -691,10 +703,7 @@ class MentionHere(VirtualMessageSegment):
 
     @override
     async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
-        return KMarkdown.create(
-            "(met)here(met)",
-            str(self)
-        )
+        return KMarkdown.create("(met)here(met)", str(self))
 
     @classmethod
     def create(cls) -> "MentionHere":
@@ -759,7 +768,9 @@ def _convert_to_card_message(msg: Message) -> MessageSegment:
     for seg in msg:
         if isinstance(seg, Card):
             if len(modules) != 0:
-                cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
+                cards.append(
+                    {"type": "card", "theme": "none", "size": "lg", "modules": modules}
+                )
                 modules = []
             cards.extend(json.loads(seg.data["content"]))
         elif isinstance(seg, Text):
@@ -797,7 +808,9 @@ def _convert_to_card_message(msg: Message) -> MessageSegment:
             raise UnsupportedMessageType(seg.type)
 
     if len(modules) != 0:
-        cards.append({"type": "card", "theme": "none", "size": "lg", "modules": modules})
+        cards.append(
+            {"type": "card", "theme": "none", "size": "lg", "modules": modules}
+        )
 
     return Card.create(cards)
 
@@ -807,6 +820,7 @@ class MessageSerializer:
     """
     开黑啦 协议 Message 序列化器。
     """
+
     message: Message
 
     async def serialize(self, bot: "Bot") -> dict:
@@ -839,12 +853,12 @@ class MessageSerializer:
             card_msg = Message(_convert_to_card_message(self.message))
             serialized_data = {
                 **serialized_data,
-                **(await MessageSerializer(card_msg).serialize(bot))
+                **(await MessageSerializer(card_msg).serialize(bot)),
             }
         else:
             serialized_data = {
                 **serialized_data,
-                **(await self.message[0]._serialize_for_send(bot))
+                **(await self.message[0]._serialize_for_send(bot)),
             }
         return serialized_data
 
@@ -869,6 +883,7 @@ class MessageDeserializer:
     """
     开黑啦 协议 Message 反序列化器。
     """
+
     type_code: int
     data: dict
 
@@ -882,26 +897,22 @@ class MessageDeserializer:
         content_with_raw_mention = content
         for mention in self.data["kmarkdown"]["mention_part"]:
             content_with_raw_mention = content_with_raw_mention.replace(
-                f"(met){mention['id']}(met)",
-                f"@{mention['username']}"
+                f"(met){mention['id']}(met)", f"@{mention['username']}"
             )
 
         for mention in self.data["kmarkdown"]["mention_role_part"]:
             content_with_raw_mention = content_with_raw_mention.replace(
-                f"(rol){mention['role_id']}(rol)",
-                f"@{mention['name']}"
+                f"(rol){mention['role_id']}(rol)", f"@{mention['name']}"
             )
 
         if self.data["mention_all"]:
             content_with_raw_mention = content_with_raw_mention.replace(
-                "(met)all(met)",
-                "@全体成员"
+                "(met)all(met)", "@全体成员"
             )
 
         if self.data["mention_here"]:
             content_with_raw_mention = content_with_raw_mention.replace(
-                "(met)here(met)",
-                "@在线成员"
+                "(met)here(met)", "@在线成员"
             )
 
         return content_with_raw_mention
@@ -910,7 +921,12 @@ class MessageDeserializer:
         unescaped = unescape_kmarkdown(content)
         return unescaped.strip() == raw_content  # raw_content默认strip掉首尾空格
 
-    def split_text(self, message: Message, find_text: str, replace_with: Callable[[], MessageSegment]) -> Message:
+    def split_text(
+        self,
+        message: Message,
+        find_text: str,
+        replace_with: Callable[[], MessageSegment],
+    ) -> Message:
         new_message = Message()
         for seg in message:
             if isinstance(seg, Text):
@@ -927,25 +943,41 @@ class MessageDeserializer:
 
     def convert_mention_seg(self, message: Message) -> Message:
         for mention in self.data["kmarkdown"]["mention_part"]:
-            message = self.split_text(message, f"(met){mention['id']}(met)",
-                                      lambda: Mention.create(mention["id"], mention["username"]))
+            message = self.split_text(
+                message,
+                f"(met){mention['id']}(met)",
+                lambda: Mention.create(mention["id"], mention["username"]),
+            )
 
         for mention in self.data["kmarkdown"]["mention_role_part"]:
-            message = self.split_text(message, f"(met){mention['role_id']}(met)",
-                                      lambda: MentionRole.create(mention["role_id"], mention["name"]))
+            message = self.split_text(
+                message,
+                f"(met){mention['role_id']}(met)",
+                lambda: MentionRole.create(mention["role_id"], mention["name"]),
+            )
 
         if self.data["mention_all"]:
-            message = self.split_text(message, "(met)all(met)",
-                                      lambda: MentionAll.create())
+            message = self.split_text(
+                message, "(met)all(met)", lambda: MentionAll.create()
+            )
 
         if self.data["mention_here"]:
-            message = self.split_text(message, "(met)here(met)",
-                                      lambda: MentionHere.create())
+            message = self.split_text(
+                message, "(met)here(met)", lambda: MentionHere.create()
+            )
 
         # 去除首尾空文本消息段
-        if len(message) > 1 and isinstance(message[0], Text) and len(message[0].plain_text) == 0:
+        if (
+            len(message) > 1
+            and isinstance(message[0], Text)
+            and len(message[0].plain_text) == 0
+        ):
             message.pop(0)
-        if len(message) > 1 and isinstance(message[-1], Text) and len(message[-1].plain_text) == 0:
+        if (
+            len(message) > 1
+            and isinstance(message[-1], Text)
+            and len(message[-1].plain_text) == 0
+        ):
             message.pop()
         return message
 

@@ -1,18 +1,27 @@
-from io import BytesIO, BufferedReader
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, BinaryIO, Optional, Literal, Callable
+from io import BytesIO, BufferedReader
+from typing import TYPE_CHECKING, Any, Union, Literal, BinaryIO, Callable, Optional
 
-from nonebot.message import handle_event
 from nonebot.typing import overrides
+from nonebot.message import handle_event
 
 from nonebot.adapters import Bot as BaseBot
-from .api import ApiClient, MessageCreateReturn
+
 from .event import Event, MessageEvent
-from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
 from .utils import log, escape_kmarkdown
+from .api import ApiClient, MessageCreateReturn
+from .message import (
+    Text,
+    Mention,
+    Message,
+    KMarkdown,
+    MessageSegment,
+    MessageSerializer,
+)
 
 if TYPE_CHECKING:
     from os import PathLike
+
     from .adapter import Adapter
 
 
@@ -39,7 +48,7 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
         return
 
     def _is_at_me_seg(seg: MessageSegment):
-        return isinstance(seg, Mention) and seg.data['user_id'] == bot.self_id
+        return isinstance(seg, Mention) and seg.data["user_id"] == bot.self_id
 
     # check the first segment
     if _is_at_me_seg(event.message[0]):
@@ -57,9 +66,9 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
         i = -1
         last_msg_seg = event.message[i]
         if (
-                isinstance(last_msg_seg, Text)
-                and not last_msg_seg.plain_text.strip()
-                and len(event.message) >= 2
+            isinstance(last_msg_seg, Text)
+            and not last_msg_seg.plain_text.strip()
+            and len(event.message) >= 2
         ):
             i -= 1
             last_msg_seg = event.message[i]
@@ -104,17 +113,19 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
                 log("DEBUG", f"User is calling me {nickname}")
                 event.to_me = True
                 first_seg.data["raw_content"] = first_text.removeprefix(nickname)
-                first_seg.data["content"] = first_seg.data["content"].removeprefix(escape_kmarkdown(nickname))
+                first_seg.data["content"] = first_seg.data["content"].removeprefix(
+                    escape_kmarkdown(nickname)
+                )
                 break
 
 
 async def send(
-        bot: "Bot",
-        event: Event,
-        message: Union[str, Message, MessageSegment],
-        reply_sender: bool = False,
-        is_temp_msg: bool = False,
-        **kwargs: Any,
+    bot: "Bot",
+    event: Event,
+    message: Union[str, Message, MessageSegment],
+    reply_sender: bool = False,
+    is_temp_msg: bool = False,
+    **kwargs: Any,
 ) -> Any:
     # 构造参数
     params = {**kwargs}
@@ -124,7 +135,7 @@ async def send(
         params.setdefault("quote", getattr(event, "message_id"))
 
     # message_type
-    if event.channel_type == 'GROUP':
+    if event.channel_type == "GROUP":
         params.setdefault("message_type", "channel")
 
         # temp_target_id
@@ -202,12 +213,12 @@ class Bot(BaseBot, ApiClient):
 
     @overrides(BaseBot)
     async def send(
-            self,
-            event: Event,
-            message: Union[str, Message, MessageSegment],
-            reply_sender: bool = False,
-            is_temp_msg: bool = False,
-            **kwargs,
+        self,
+        event: Event,
+        message: Union[str, Message, MessageSegment],
+        reply_sender: bool = False,
+        is_temp_msg: bool = False,
+        **kwargs,
     ) -> MessageCreateReturn:
         """
         :说明:
@@ -232,72 +243,74 @@ class Bot(BaseBot, ApiClient):
           - ``NetworkError``: 网络错误
           - ``ActionFailed``: API 调用失败
         """
-        return await self.__class__.send_handler(self, event, message, reply_sender, is_temp_msg, **kwargs)
+        return await self.__class__.send_handler(
+            self, event, message, reply_sender, is_temp_msg, **kwargs
+        )
 
     async def send_private_msg(
-            self,
-            *,
-            user_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        user_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> MessageCreateReturn:
         """发送私聊消息。
 
-            user_id: 对方用户ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        user_id: 对方用户ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="private",
-                                   user_id=user_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="private", user_id=user_id, message=message, quote=quote
+        )
 
     async def send_channel_msg(
-            self,
-            *,
-            channel_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        channel_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> MessageCreateReturn:
         """发送频道消息。
 
-            channel_id: 频道ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        channel_id: 频道ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="channel",
-                                   channel_id=channel_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="channel", channel_id=channel_id, message=message, quote=quote
+        )
 
     async def send_temp_msg(
-            self,
-            *,
-            user_id: str,
-            channel_id: str,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        user_id: str,
+        channel_id: str,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> MessageCreateReturn:
         """发送频道临时消息。该消息不会存数据库，但是会在频道内只给该用户推送临时消息。用于在频道内针对用户的操作进行单独的回应通知等。
 
-            channel_id: 频道ID
-            message: 要发送的内容，字符串类型将作为纯文本消息发送
-            quote: 回复某条消息的消息ID
+        channel_id: 频道ID
+        message: 要发送的内容，字符串类型将作为纯文本消息发送
+        quote: 回复某条消息的消息ID
         """
-        return await self.send_msg(message_type="temp",
-                                   user_id=user_id,
-                                   channel_id=channel_id,
-                                   message=message,
-                                   quote=quote)
+        return await self.send_msg(
+            message_type="temp",
+            user_id=user_id,
+            channel_id=channel_id,
+            message=message,
+            quote=quote,
+        )
 
     async def send_msg(
-            self,
-            *,
-            message_type: Literal['private', 'channel', 'temp', ''] = '',
-            user_id: Optional[str] = None,
-            channel_id: Optional[str] = None,
-            message: Union[str, Message, MessageSegment],
-            quote: Optional[str] = None
+        self,
+        *,
+        message_type: Literal["private", "channel", "temp", ""] = "",
+        user_id: Optional[str] = None,
+        channel_id: Optional[str] = None,
+        message: Union[str, Message, MessageSegment],
+        quote: Optional[str] = None,
     ) -> MessageCreateReturn:
         """发送消息。
 
@@ -351,8 +364,11 @@ class Bot(BaseBot, ApiClient):
 
         return await self.call_api(api, **params)
 
-    async def upload_file(self, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
-                          filename: Optional[str] = None) -> str:
+    async def upload_file(
+        self,
+        file: Union[str, "PathLike[str]", BinaryIO, bytes],
+        filename: Optional[str] = None,
+    ) -> str:
         """
         上传文件。
 

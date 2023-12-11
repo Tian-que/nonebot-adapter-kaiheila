@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from pydantic import Field, BaseModel
 
+
 class BotConfig(BaseModel):
     """
     Kaiheila Bot 配置类
@@ -28,9 +29,10 @@ class Config(BaseModel):
     :示例:
 
     .. code-block:: default
-    
+
         bots = [{"token": "token1"}, {"token": "token2"}]
     """
+
     kaiheila_bots: List["BotConfig"] = Field(default_factory=list)
     compress: Optional[bool] = Field(default=False)
 

@@ -2,11 +2,11 @@ import json
 from typing import Optional
 
 from nonebot.drivers import Response
-from nonebot.exception import ActionFailed as BaseActionFailed
 from nonebot.exception import AdapterException
-from nonebot.exception import ApiNotAvailable as BaseApiNotAvailable
+from nonebot.exception import ActionFailed as BaseActionFailed
 from nonebot.exception import NetworkError as BaseNetworkError
 from nonebot.exception import NoLogException as BaseNoLogException
+from nonebot.exception import ApiNotAvailable as BaseApiNotAvailable
 
 
 class KaiheilaAdapterException(AdapterException):
@@ -123,6 +123,7 @@ class ReconnectError(KaiheilaAdapterException):
 
       服务端通知客户端, 代表该连接已失效, 请重新连接。客户端收到后应该主动断开当前连接。
     """
+
     pass
 
 
