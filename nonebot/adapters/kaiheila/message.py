@@ -3,11 +3,11 @@ import warnings
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, Callable
+from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, cast, Callable
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
-from typing_extensions import override
+from typing_extensions import override, Self
 
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation, KaiheilaAdapterException
 from .utils import unescape_kmarkdown, escape_kmarkdown, BytesReadable
