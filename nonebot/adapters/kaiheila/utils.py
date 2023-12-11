@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections import UserDict
 from io import StringIO
-from typing import Any, Dict, Tuple, Optional
+from typing import Any, Dict, Tuple, Optional, runtime_checkable, Protocol
 
 from nonebot.internal.driver import Response
 from nonebot.utils import logger_wrapper
@@ -106,3 +106,9 @@ class AttrDict(UserDict):
 
     def __getattr__(self, name):
         return self[name]
+
+
+@runtime_checkable
+class BytesReadable(Protocol):
+    def read(self) -> bytes:
+        ...

@@ -1,22 +1,19 @@
-import re
 from io import BytesIO, BufferedReader
 from pathlib import Path
 from typing import Any, Union, TYPE_CHECKING, BinaryIO, Optional, Literal, Callable
 
-from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
 from nonebot.typing import overrides
 
+from nonebot.adapters import Bot as BaseBot
 from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
-from .message import Message, MessageSegment, MessageSerializer
-from .utils import log
+from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
+from .utils import log, escape_kmarkdown
 
 if TYPE_CHECKING:
     from os import PathLike
-    from .event import Event
     from .adapter import Adapter
-    from .message import Message, MessageSegment
 
 
 def _check_at_me(bot: "Bot", event: MessageEvent):
@@ -34,28 +31,46 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
         return
 
     # ensure message not empty
-    # if not event.message:
-    #     event.message.append(MessageSegment.text(""))
+    if not event.message:
+        event.message.append(MessageSegment.text(""))
 
     if event.message_type == "private":
         event.to_me = True
-    else:
-        if event.message[0].type == "kmarkdown" and bot.self_id in event.extra.mention:
-            event.to_me = True
-            met_str = f"(met){bot.self_id}(met)"
-            raw_met_str = f"@{bot.self_name}"
+        return
 
-            content: str = event.message[0].data["content"].strip()
-            raw_content: str = event.message[0].data["raw_content"].strip()
-            if content.startswith(met_str):
-                content = content[len(met_str):].lstrip()
-                raw_content = raw_content[len(raw_met_str):].lstrip()
-            elif content.endswith(met_str):
-                content = content[:-len(met_str)].rstrip()
-                raw_content = raw_content[:-len(raw_met_str)].rstrip()
-            event.message[0].data["content"] = content
-            event.message[0].data["raw_content"] = raw_content
-            event.message[0].data["is_plain_text"] = True
+    def _is_at_me_seg(seg: MessageSegment):
+        return isinstance(seg, Mention) and seg.data['user_id'] == bot.self_id
+
+    # check the first segment
+    if _is_at_me_seg(event.message[0]):
+        event.to_me = True
+        event.message.pop(0)
+
+        # 去除mention之后的空格
+        if event.message and isinstance(event.message[0], Text):
+            event.message[0].plain_text = event.message[0].plain_text.lstrip()
+            if not event.message[0].plain_text:
+                del event.message[0]
+
+    if not event.to_me:
+        # check the last segment
+        i = -1
+        last_msg_seg = event.message[i]
+        if (
+                isinstance(last_msg_seg, Text)
+                and not last_msg_seg.plain_text.strip()
+                and len(event.message) >= 2
+        ):
+            i -= 1
+            last_msg_seg = event.message[i]
+
+        if _is_at_me_seg(last_msg_seg):
+            event.to_me = True
+            del event.message[i:]
+
+    # 避免消息为空
+    if event.message == 0:
+        event.message.append(MessageSegment.text(""))
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):
@@ -69,22 +84,28 @@ def _check_nickname(bot: "Bot", event: MessageEvent):
       * ``bot: Bot``: Bot 对象
       * ``event: Event``: Event 对象
     """
-    first_msg_seg = event.message[0]
-    if first_msg_seg.type != "text":
-        return
-
-    first_text = first_msg_seg.data["content"]
-
     nicknames = set(filter(lambda n: n, bot.config.nickname))
-    if nicknames:
-        # check if the user is calling me with my nickname
-        nickname_regex = "|".join(nicknames)
-        m = re.search(rf"^({nickname_regex})([\s,，]*|$)", first_text, re.IGNORECASE)
-        if m:
-            nickname = m.group(1)
-            log("DEBUG", f"User is calling me {nickname}")
-            event.to_me = True
-            first_msg_seg.data["content"] = first_text[m.end():]
+    first_seg = event.message[0]
+
+    if isinstance(first_seg, Text):
+        first_text = first_seg.data["text"]
+
+        for nickname in nicknames:
+            if first_text.startswith(nickname):
+                log("DEBUG", f"User is calling me {nickname}")
+                event.to_me = True
+                first_seg.data["text"] = first_text.removeprefix(nickname)
+                break
+    elif isinstance(first_seg, KMarkdown):
+        first_text = first_seg.data["raw_content"]
+
+        for nickname in nicknames:
+            if first_text.startswith(nickname):
+                log("DEBUG", f"User is calling me {nickname}")
+                event.to_me = True
+                first_seg.data["raw_content"] = first_text.removeprefix(nickname)
+                first_seg.data["content"] = first_seg.data["content"].removeprefix(escape_kmarkdown(nickname))
+                break
 
 
 async def send(
@@ -294,23 +315,13 @@ class Bot(BaseBot, ApiClient):
 
         # type & content
         if isinstance(message, Message):
-            new_message = Message()
-            # 提取message中的quote消息段
-            for seg in message:
-                if seg.type == 'quote':
-                    if not quote:
-                        quote = seg.data["msg_id"]
-                else:
-                    new_message.append(seg)
-
-            params["type"], params["content"] = MessageSerializer(new_message).serialize()
-        elif isinstance(message, MessageSegment):
-            params["type"], params["content"] = MessageSerializer(Message(message)).serialize()
+            serialized_data = await MessageSerializer(message).serialize(self)
         else:
-            params["type"], params["content"] = 1, message
+            serialized_data = await MessageSerializer(Message(message)).serialize(self)
+        params = {**params, **serialized_data}
 
         # quote
-        if quote:
+        if quote is not None:
             params["quote"] = quote
 
         # target_id & api
@@ -336,7 +347,7 @@ class Bot(BaseBot, ApiClient):
                 params["temp_target_id"] = user_id
                 api = "message_create"
             else:
-                raise ValueError(f"channel_id 和 user_id 不能同时为 None")
+                raise ValueError("channel_id 和 user_id 不能同时为 None")
 
         return await self.call_api(api, **params)
 

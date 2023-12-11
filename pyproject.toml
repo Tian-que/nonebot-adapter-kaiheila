@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nonebot-adapter-kaiheila"
-version = "0.2.12"
+version = "0.3.0"
 description = "kaiheila adapter for nonebot2"
 authors = ["Tian-que <1605206150@qq.com>", "ssttkkl <huang.wen.long@hotmail.com>"]
 license = "MIT"
@@ -15,6 +15,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 nonebot2 = "^2.0.0"
+typing-extensions = "^4.8.0"
 
 #[[tool.poetry.source]]
 #name = "aliyun"
