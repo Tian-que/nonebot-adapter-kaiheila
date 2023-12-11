@@ -3,7 +3,7 @@ import warnings
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, BinaryIO
+from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, BinaryIO, Callable
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
@@ -178,7 +178,7 @@ class VirtualMessageSegment(MessageSegment):
     """
     虚拟消息段。本来不在消息中，但是从事件中提取出来的消息段。方便用户处理特殊元素。
 
-    比如原始消息是[KMarkdown: /command (met)123(met)]的话，就变成[KMarkdown: /command (met)123(met)][Mention: 123]
+    比如原始消息是[KMarkdown: /command (met)123(met)]的话，就变成[KMarkdown: /command ](met)123(met)][Mention: 123]
     """
 
     if TYPE_CHECKING:
@@ -198,7 +198,6 @@ class SendOnlyMessageSegment(MessageSegment):
     ...
 
 
-@dataclass
 class Text(ReceivableMessageSegment):
     if TYPE_CHECKING:
         class _TextData(TypedDict):
@@ -238,7 +237,6 @@ class Text(ReceivableMessageSegment):
         return cls("text", {"text": text})
 
 
-@dataclass
 class KMarkdown(ReceivableMessageSegment):
     if TYPE_CHECKING:
         class _KMarkdownData(TypedDict):
@@ -293,7 +291,6 @@ class KMarkdown(ReceivableMessageSegment):
         })
 
 
-@dataclass
 class Card(ReceivableMessageSegment):
     if TYPE_CHECKING:
         class _CardData(TypedDict):
@@ -702,7 +699,7 @@ class MentionAll(VirtualMessageSegment):
 class MentionHere(VirtualMessageSegment):
     @override
     def __str__(self) -> str:
-        return f"@全体在线成员"
+        return f"@在线成员"
 
     @override
     def _actual_seg(self) -> KMarkdown:
@@ -713,7 +710,7 @@ class MentionHere(VirtualMessageSegment):
 
     @classmethod
     def create(cls) -> "MentionHere":
-        return cls("mention_here", {"for_send": None})
+        return cls("mention_here", {"for_send": True})
 
 
 class Message(BaseMessage[MessageSegment]):
@@ -890,48 +887,91 @@ class MessageDeserializer:
     def __post_init__(self):
         self.type = _rev_msg_type_map.get(self.type_code, "")
 
-    def deserialize(self) -> Message:
-        msg = Message()
+    def kmd_with_raw_mention(self, content: str) -> str:
+        # 将content中的(met)xxx(met)替换为@xxx
+        # 在此基础上再去判断是否为纯文本消息
 
-        # TODO：提取quote
-
-        if self.type == KMarkdown:
-            content = self.data["content"]
-            raw_content = self.data["kmarkdown"]["raw_content"]
-
-            # raw_content默认strip掉首尾空格，但是开黑啦本体的聊天界面中不会strip，所以这里还原了
-            unescaped = unescape_kmarkdown(content)
-            is_plain_text = unescaped.strip() == raw_content
-            if is_plain_text:
-                raw_content = unescaped
-
-            # 如果是KMarkdown消息是纯文本，直接构造纯文本消息
-            # 目的是让on_command等依赖__str__的规则能够在消息存在转义字符时正常工作
-            if is_plain_text:
-                msg.append(MessageSegment.text(raw_content))
-            else:
-                msg.append(MessageSegment.KMarkdown(content, raw_content))
-        else:
-            msg.append(self.type._deserialize(self.data))
-
+        content_with_raw_mention = content
         for mention in self.data['kmarkdown']['mention_part']:
-            seg = Mention.create(mention['id'], mention['username'])
-            seg.data['for_send'] = False
-            msg.append(seg)
+            content_with_raw_mention = content_with_raw_mention.replace(
+                f"(met){mention['id']}(met)",
+                f"@{mention['username']}"
+            )
 
         for mention in self.data['kmarkdown']['mention_role_part']:
-            seg = MentionRole.create(mention['role_id'], mention['name'])
-            seg.data['for_send'] = False
-            msg.append(seg)
+            content_with_raw_mention = content_with_raw_mention.replace(
+                f"(rol){mention['role_id']}(rol)",
+                f"@{mention['name']}"
+            )
 
         if self.data['mention_all']:
-            seg = MentionAll.create()
-            seg.data['for_send'] = False
-            msg.append(seg)
+            content_with_raw_mention = content_with_raw_mention.replace(
+                f"(met)all(met)",
+                f"@全体成员"
+            )
 
         if self.data['mention_here']:
-            seg = MentionHere.create()
-            seg.data['for_send'] = False
-            msg.append(seg)
+            content_with_raw_mention = content_with_raw_mention.replace(
+                f"(met)here(met)",
+                f"@在线成员"
+            )
+
+        return content_with_raw_mention
+
+    def is_kmd_plain_text(self, content: str, raw_content: str) -> bool:
+        unescaped = unescape_kmarkdown(content)
+        return unescaped.strip() == raw_content  # raw_content默认strip掉首尾空格
+
+    def split_text(self, message: Message, find_text: str, replace_with: Callable[[], MessageSegment]) -> Message:
+        new_message = Message()
+        for seg in message:
+            if isinstance(seg, Text):
+                text = seg.data['text']
+                rest_part = text.split(find_text)
+
+                new_message.append(rest_part[0])
+                for i in range(1, len(rest_part)):
+                    new_message.append(replace_with())
+                    new_message.append(Text.create(rest_part[i]))
+            else:
+                new_message.append(seg)
+        return new_message
+
+    def convert_mention_seg(self, message: Message) -> Message:
+        for mention in self.data['kmarkdown']['mention_part']:
+            message = self.split_text(message, f"(met){mention['id']}(met)",
+                                      lambda: Mention.create(mention['id'], mention['username']))
+
+        for mention in self.data['kmarkdown']['mention_role_part']:
+            message = self.split_text(message, f"(met){mention['role_id']}(met)",
+                                      lambda: MentionRole.create(mention['role_id'], mention['name']))
+
+        if self.data['mention_all']:
+            message = self.split_text(message, f"(met)all(met)",
+                                      lambda: MentionAll.create())
+
+        if self.data['mention_here']:
+            message = self.split_text(message, f"(met)here(met)",
+                                      lambda: MentionHere.create())
+
+        return message
+
+    def deserialize(self) -> Message:
+        if self.type == KMarkdown:
+            content: str = self.data["content"]
+            raw_content: str = self.data["kmarkdown"]["raw_content"]
+
+            content_with_raw_mention = self.kmd_with_raw_mention(content)
+
+            # 如果KMarkdown消息是纯文本（除了mention的部分以外），直接构造纯文本消息
+            # 目的是让on_command等依赖__str__的规则能够在消息存在转义字符时正常工作
+            if self.is_kmd_plain_text(content_with_raw_mention, raw_content):
+                # 从反转义的kmarkdown构造，并将里面的mention部分换为对应消息段
+                msg = Message(Text.create(unescape_kmarkdown(content)))
+                msg = self.convert_mention_seg(msg)
+            else:
+                msg = Message(KMarkdown.create(content, raw_content))
+        else:
+            msg = Message(self.type._deserialize(self.data))
 
         return msg
