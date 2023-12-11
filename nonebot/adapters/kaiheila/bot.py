@@ -1,12 +1,11 @@
-import re
 from io import BytesIO, BufferedReader
 from pathlib import Path
 from typing import Any, Union, TYPE_CHECKING, BinaryIO, Optional, Literal, Callable
 
-from nonebot.adapters import Bot as BaseBot
 from nonebot.message import handle_event
 from nonebot.typing import overrides
 
+from nonebot.adapters import Bot as BaseBot
 from .api import ApiClient, MessageCreateReturn
 from .event import Event, MessageEvent
 from .message import Message, MessageSegment, MessageSerializer, Text, Mention, KMarkdown
@@ -21,7 +20,7 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
     """
     :说明:
 
-      检查消息是否存在 @机器人，去除并赋值 ``event.to_me``
+      检查消息开头或结尾是否存在 @机器人，去除并赋值 ``event.to_me``
 
     :参数:
 
@@ -31,21 +30,22 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
     if not isinstance(event, MessageEvent):
         return
 
-    # ensure message not empty
-    # if not event.message:
-    #     event.message.append(MessageSegment.text(""))
-
     if event.message_type == "private":
         event.to_me = True
+        return
+
+    first_seg = event.message[0]
+    if isinstance(first_seg, Mention) and first_seg.data['user_id'] == bot.self_id:
+        event.to_me = True
+        event.message.pop(0)
     else:
-        at_me_index = -1
-        for i, seg in enumerate(event.message):
-            if isinstance(seg, Mention) and seg.data['user_id'] == bot.self_id:
-                event.to_me = True
-                at_me_index = i
-                break
-        if at_me_index != -1:
-            event.message.pop(at_me_index)
+        last_seg = event.message[-1]
+        if isinstance(last_seg, Mention) and last_seg.data['user_id'] == bot.self_id:
+            event.to_me = True
+            event.message.pop()
+
+    if len(event.message) == 0:  # 避免消息为空
+        event.message.append(Text.create(""))
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):
