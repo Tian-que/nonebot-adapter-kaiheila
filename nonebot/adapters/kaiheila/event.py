@@ -1,10 +1,9 @@
 import inspect
 from enum import IntEnum
-from typing_extensions import Literal
 from typing import List, Type, Union, Optional
+from typing_extensions import Literal, override
 
 from pygtrie import StringTrie
-from nonebot.typing import overrides
 from nonebot.utils import escape_tag
 from pydantic import Field, HttpUrl, BaseModel, validator, root_validator
 
@@ -100,35 +99,35 @@ class OriginEvent(BaseEvent):
 
     post_type: str
 
-    @overrides(BaseEvent)
+    @override
     def get_type(self) -> str:
         return self.post_type
 
-    @overrides(BaseEvent)
+    @override
     def get_event_name(self) -> str:
         return self.post_type
 
-    @overrides(BaseEvent)
+    @override
     def get_event_description(self) -> str:
         return escape_tag(str(self.dict()))
 
-    @overrides(BaseEvent)
+    @override
     def get_message(self) -> Message:
         raise ValueError("Event has no message!")
 
-    @overrides(BaseEvent)
+    @override
     def get_plaintext(self) -> str:
         raise ValueError("Event has no message!")
 
-    @overrides(BaseEvent)
+    @override
     def get_user_id(self) -> str:
         raise ValueError("Event has no message!")
 
-    @overrides(BaseEvent)
+    @override
     def get_session_id(self) -> str:
         raise ValueError("Event has no message!")
 
-    @overrides(BaseEvent)
+    @override
     def is_tome(self) -> bool:
         return False
 
@@ -195,23 +194,23 @@ class Event(OriginEvent):
     post_type: str
     self_id: Optional[str] = None  # onebot兼容
 
-    @overrides(BaseEvent)
+    @override
     def get_event_description(self) -> str:
         return escape_tag(str(self.dict()))
 
-    @overrides(BaseEvent)
+    @override
     def get_plaintext(self) -> str:
         return self.content
 
-    @overrides(BaseEvent)
+    @override
     def get_user_id(self) -> str:
         return self.user_id
 
-    @overrides(BaseEvent)
+    @override
     def get_session_id(self) -> str:
         raise ValueError("Event has no message!")
 
-    @overrides(BaseEvent)
+    @override
     def is_tome(self) -> bool:
         return False
 
@@ -234,22 +233,22 @@ class MessageEvent(Event):
     :类型: ``bool``
     """
 
-    @overrides(Event)
+    @override
     def get_event_name(self) -> str:
         sub_type = getattr(self, "sub_type", None)
         return f"{self.post_type}.{self.message_type}" + (
             f".{sub_type}" if sub_type else ""
         )
 
-    @overrides(Event)
+    @override
     def get_message(self) -> Message:
         return self.message
 
-    @overrides(Event)
+    @override
     def get_plaintext(self) -> str:
         return self.message.extract_plain_text()
 
-    @overrides(Event)
+    @override
     def is_tome(self) -> bool:
         return self.to_me
 
@@ -264,11 +263,11 @@ class PrivateMessageEvent(MessageEvent):
     __event__ = "message.private"
     message_type: Literal["private"]
 
-    @overrides(MessageEvent)
+    @override
     def get_session_id(self) -> str:
         return f"user_{self.user_id}"
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f'Message {self.msg_id} from {self.user_id} "'
@@ -287,7 +286,7 @@ class ChannelMessageEvent(MessageEvent):
     message_type: Literal["group"]
     group_id: str
 
-    @overrides(MessageEvent)
+    @override
     def get_event_description(self) -> str:
         return (
             f'Message {self.msg_id} from {self.user_id}@[服务器:{self.extra.guild_id}][频道:{self.group_id}] "'
@@ -297,7 +296,7 @@ class ChannelMessageEvent(MessageEvent):
             )
         )
 
-    @overrides(MessageEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
@@ -310,7 +309,7 @@ class NoticeEvent(Event):
     post_type: Literal["notice"]
     notice_type: str
 
-    @overrides(Event)
+    @override
     def get_event_name(self) -> str:
         sub_type = getattr(self, "sub_type", None)
         return f"{self.post_type}.{self.notice_type}" + (
@@ -324,7 +323,7 @@ class ChannelNoticeEvent(NoticeEvent):
 
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
@@ -335,10 +334,12 @@ class ChannelAddReactionEvent(ChannelNoticeEvent):
     __event__ = "notice.added_reaction"
     notice_type: Literal["added_reaction"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
-        return (
-            f"Notice {self.msg_id} from {self.extra.body.user_id}@[服务器:{self.target_id}][频道:{self.extra.body.channel_id}] "
+        return escape_tag(
+            f"Notice {self.msg_id} from {self.extra.body.user_id}@"
+            f"[服务器:{self.target_id}]"
+            f"[频道:{self.extra.body.channel_id}] "
             + f'add Emoji "{self.extra.body.emoji.name}" '
             + ""
             + f"to {self.extra.body.msg_id}"
@@ -352,18 +353,20 @@ class ChannelDeletedReactionEvent(ChannelNoticeEvent):
     __event__ = "notice.deleted_reaction"
     notice_type: Literal["deleted_reaction"]
 
-    @overrides(NoticeEvent)
+    @override
     def get_user_id(self) -> str:
         return str(self.user_id)
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
-        return (
-            f"Notice {self.msg_id} from {self.extra.body.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
+        return escape_tag(
+            f"Notice {self.msg_id} from {self.extra.body.user_id}@"
+            f"[服务器:{self.target_id}]"
+            f"[频道{self.extra.body.channel_id}] "
             + f'delete Emoji "{self.extra.body.emoji.name}" '
             + f"from {self.extra.body.msg_id}"
         )
@@ -375,7 +378,7 @@ class ChannelUpdatedMessageEvent(ChannelNoticeEvent):
     __event__ = "notice.updated_message"
     notice_type: Literal["updated_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
@@ -391,7 +394,7 @@ class ChannelDeleteMessageEvent(ChannelNoticeEvent):
     __event__ = "notice.deleted_message"
     notice_type: Literal["deleted_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.user_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
@@ -405,7 +408,7 @@ class ChannelAddedEvent(ChannelNoticeEvent):
     __event__ = "notice.added_channel"
     notice_type: Literal["added_channel"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.user_id}@[服务器:{self.target_id}] "
@@ -420,7 +423,7 @@ class ChannelUpdatedEvent(ChannelNoticeEvent):
     __event__ = "notice.updated_channel"
     notice_type: Literal["updated_channel"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.user_id}@[服务器:{self.target_id}] "
@@ -435,7 +438,7 @@ class ChannelDeleteEvent(ChannelNoticeEvent):
     __event__ = "notice.deleted_channel"
     notice_type: Literal["deleted_channel"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.user_id}@[服务器:{self.target_id}] "
@@ -450,10 +453,12 @@ class ChannelPinnedMessageEvent(ChannelNoticeEvent):
     __event__ = "notice.pinned_message"
     notice_type: Literal["pinned_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
-        return (
-            f"Notice {self.msg_id} from {self.extra.body.operator_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
+        return escape_tag(
+            f"Notice {self.msg_id} from {self.extra.body.operator_id}@"
+            f"[服务器:{self.target_id}]"
+            f"[频道{self.extra.body.channel_id}] "
             + f'新增频道置顶消息 "{self.extra.body.msg_id}" '
         )
 
@@ -464,17 +469,20 @@ class ChannelUnpinnedMessageEvent(ChannelNoticeEvent):
     __event__ = "notice.unpinned_message"
     notice_type: Literal["unpinned_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
-        return (
-            f"Notice {self.msg_id} from {self.extra.body.operator_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
+        return escape_tag(
+            f"Notice {self.msg_id} from {self.extra.body.operator_id}@"
+            f"[服务器:{self.target_id}]"
+            f"[频道{self.extra.body.channel_id}] "
             + f'取消频道置顶消息 "{self.extra.body.msg_id}" '
         )
 
 
 # Private Events
 class PrivateNoticeEvent(NoticeEvent):
-    "私聊消息事件"
+    """私聊消息事件"""
+
     pass
 
 
@@ -484,7 +492,7 @@ class PrivateUpdateMessageEvent(PrivateNoticeEvent):
     __event__ = "notice.updated_private_message"
     notice_type: Literal["updated_private_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.extra.body.author_id} "
@@ -500,7 +508,7 @@ class PrivateDeleteMessageEvent(PrivateNoticeEvent):
     __event__ = "notice.deleted_private_message"
     notice_type: Literal["deleted_private_message"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.extra.body.author_id} "
@@ -514,7 +522,7 @@ class PrivateAddReactionEvent(PrivateNoticeEvent):
     __event__ = "notice.private_added_reaction"
     notice_type: Literal["private_added_reaction"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.extra.body.user_id} "
@@ -530,7 +538,7 @@ class PrivateDeleteReactionEvent(PrivateNoticeEvent):
     __event__ = "notice.private_deleted_reaction"
     notice_type: Literal["private_deleted_reaction"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.extra.body.user_id} "
@@ -546,7 +554,7 @@ class GuildNoticeEvent(NoticeEvent):
 
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"Guild_{self.group_id}_user_{self.user_id}"
 
@@ -567,7 +575,7 @@ class GuildMemberIncreaseNoticeEvent(GuildMemberNoticeEvent):
     __event__ = "notice.joined_guild"
     notice_type: Literal["joined_guild"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -581,7 +589,7 @@ class GuildMemberDecreaseNoticeEvent(GuildMemberNoticeEvent):
     __event__ = "notice.exited_guild"
     notice_type: Literal["exited_guild"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -595,7 +603,7 @@ class GuildMemberUpdateNoticeEvent(GuildMemberNoticeEvent):
     __event__ = "notice.updated_guild_member"
     notice_type: Literal["updated_guild_member"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -609,7 +617,7 @@ class GuildMemberOnlineNoticeEvent(GuildMemberNoticeEvent):
     __event__ = "notice.guild_member_online"
     notice_type: Literal["guild_member_online"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -623,7 +631,7 @@ class GuildMemberOfflineNoticeEvent(GuildMemberNoticeEvent):
     __event__ = "notice.guild_member_offline"
     notice_type: Literal["guild_member_offline"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -644,7 +652,7 @@ class GuildRoleAddNoticeEvent(GuildRoleNoticeEvent):
     __event__ = "notice.added_role"
     notice_type: Literal["added_role"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -658,7 +666,7 @@ class GuildRoleDeleteNoticeEvent(GuildRoleNoticeEvent):
     __event__ = "notice.deleted_role"
     notice_type: Literal["deleted_role"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -672,7 +680,7 @@ class GuildRoleUpdateNoticeEvent(GuildRoleNoticeEvent):
     __event__ = "notice.updated_role"
     notice_type: Literal["updated_role"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -687,7 +695,7 @@ class GuildUpdateNoticeEvent(GuildNoticeEvent):
     __event__ = "notice.updated_guild"
     notice_type: Literal["updated_guild"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -701,7 +709,7 @@ class GuildDeleteNoticeEvent(GuildNoticeEvent):
     __event__ = "notice.deleted_guild"
     notice_type: Literal["deleted_guild"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}] "
@@ -715,7 +723,7 @@ class GuildAddBlockListNoticeEvent(GuildNoticeEvent):
     __event__ = "notice.added_block_list"
     notice_type: Literal["added_block_list"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         block_list = " ".join(self.extra.body.user_id)
         return (
@@ -730,7 +738,7 @@ class GuildDeleteBlockListNoticeEvent(GuildNoticeEvent):
     __event__ = "notice.deleted_block_list"
     notice_type: Literal["deleted_block_list"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         block_list = " ".join(self.extra.body.user_id)
         return (
@@ -745,7 +753,7 @@ class UserNoticeEvent(NoticeEvent):
 
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"Guild_{self.group_id}_{self.user_id}"
 
@@ -756,7 +764,7 @@ class UserJoinAudioChannelNoticeEvent(UserNoticeEvent):
     __event__ = "notice.joined_channel"
     notice_type: Literal["joined_channel"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
@@ -770,7 +778,7 @@ class UserJoinAudioChannelEvent(UserNoticeEvent):
     __event__ = "notice.exited_channel"
     notice_type: Literal["exited_channel"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id}@[服务器:{self.target_id}][频道{self.extra.body.channel_id}] "
@@ -792,7 +800,7 @@ class UserInfoUpdateNoticeEvent(UserNoticeEvent):
     __event__ = "notice.user_updated"
     notice_type: Literal["user_updated"]
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id} "
@@ -812,15 +820,15 @@ class SelfJoinGuildNoticeEvent(NoticeEvent):
     user_id: str
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_user_id(self) -> str:
         return str(self.user_id)
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id} "
@@ -840,15 +848,15 @@ class SelfExitGuildNoticeEvent(NoticeEvent):
     user_id: str
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_user_id(self) -> str:
         return str(self.user_id)
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id} "
@@ -866,15 +874,15 @@ class CartBtnClickNoticeEvent(NoticeEvent):
     user_id: str
     group_id: int
 
-    @overrides(NoticeEvent)
+    @override
     def get_user_id(self) -> str:
         return str(self.user_id)
 
-    @overrides(NoticeEvent)
+    @override
     def get_session_id(self) -> str:
         return f"group_{self.group_id}_{self.user_id}"
 
-    @overrides(Event)
+    @override
     def get_event_description(self) -> str:
         return (
             f"Notice {self.msg_id} from {self.author_id} "
@@ -891,14 +899,14 @@ class MetaEvent(OriginEvent):
     post_type: Literal["meta_event"]
     meta_event_type: str
 
-    @overrides(Event)
+    @override
     def get_event_name(self) -> str:
         sub_type = getattr(self, "sub_type", None)
         return f"{self.post_type}.{self.meta_event_type}" + (
             f".{sub_type}" if sub_type else ""
         )
 
-    @overrides(Event)
+    @override
     def get_log_string(self) -> str:
         raise NoLogException
 
@@ -912,7 +920,7 @@ class LifecycleMetaEvent(MetaEvent):
 
     session_id: str
 
-    @overrides(BaseEvent)
+    @override
     def get_session_id(self) -> str:
         return self.session_id
 

@@ -1,8 +1,8 @@
 from pathlib import Path
 from io import BytesIO, BufferedReader
+from typing_extensions import override
 from typing import TYPE_CHECKING, Any, Union, Literal, BinaryIO, Callable, Optional
 
-from nonebot.typing import overrides
 from nonebot.message import handle_event
 
 from nonebot.adapters import Bot as BaseBot
@@ -180,7 +180,7 @@ class Bot(BaseBot, ApiClient):
         self.self_name: str = name
         self.token: str = token
 
-    @overrides(BaseBot)
+    @override
     async def call_api(self, api: str, **data) -> Any:
         """
         :说明:
@@ -211,7 +211,7 @@ class Bot(BaseBot, ApiClient):
 
         await handle_event(self, event)
 
-    @overrides(BaseBot)
+    @override
     async def send(
         self,
         event: Event,

@@ -235,6 +235,7 @@ class Adapter(BaseAdapter):
                         "Trying to reconnect...</bg #f8bbd0></r>",
                         e,
                     )
+                    continue
 
                 headers = {}
                 if bot_config.token:
@@ -306,7 +307,7 @@ class Adapter(BaseAdapter):
 
                         try:
                             await ws.close()
-                        except Exception:
+                        except:  # noqa: E722
                             pass
 
                         if bot:
@@ -359,7 +360,7 @@ class Adapter(BaseAdapter):
         cls,
         json_data: Any,
         self_id: Optional[str] = None,
-    ) -> Optional[Event]:
+    ) -> Union[OriginEvent, Event, None]:
         if not isinstance(json_data, dict):
             return None
 
@@ -379,9 +380,7 @@ class Adapter(BaseAdapter):
             elif json_data["d"]["code"] == 40102:
                 raise TokenError("token 验证失败")
         elif signal == SignalTypes.PONG:
-            data = {}
-            data["post_type"] = "meta_event"
-            data["meta_event_type"] = "heartbeat"
+            data = {"post_type": "meta_event", "meta_event_type": "heartbeat"}
             log(
                 "TRACE",
                 f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",

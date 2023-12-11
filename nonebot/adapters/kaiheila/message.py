@@ -5,7 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from collections.abc import Iterable
 from typing_extensions import Self, override
-from typing import TYPE_CHECKING, Any, Union, Callable, Optional, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Type, Union, Callable, Optional, TypedDict, cast
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
@@ -35,7 +35,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
 
     @classmethod
     @override
-    def get_message_class(cls) -> type["Message"]:
+    def get_message_class(cls) -> Type["Message"]:
         return Message
 
     def __str__(self) -> str:
@@ -56,7 +56,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return None
 
     def conduct(
-        self, other: Union[str, "MessageSegment", Iterable["MessageSegment"]]
+        self, other: "Union[str, MessageSegment, Iterable[MessageSegment]]"
     ) -> "MessageSegment":
         """
         连接两个或多个 MessageSegment，必须为纯文本段或 KMarkdown 段
@@ -717,12 +717,12 @@ class Message(BaseMessage[MessageSegment]):
 
     @classmethod
     @override
-    def get_segment_class(cls) -> type[MessageSegment]:
+    def get_segment_class(cls) -> Type[MessageSegment]:
         return MessageSegment
 
     @staticmethod
     @override
-    def _construct(msg: str) -> Iterable[MessageSegment]:
+    def _construct(msg: str) -> "Iterable[MessageSegment]":
         yield Text.create(msg)
 
     @override
