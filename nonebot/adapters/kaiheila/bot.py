@@ -30,22 +30,47 @@ def _check_at_me(bot: "Bot", event: MessageEvent):
     if not isinstance(event, MessageEvent):
         return
 
+    # ensure message not empty
+    if not event.message:
+        event.message.append(MessageSegment.text(""))
+
     if event.message_type == "private":
         event.to_me = True
         return
 
-    first_seg = event.message[0]
-    if isinstance(first_seg, Mention) and first_seg.data['user_id'] == bot.self_id:
+    def _is_at_me_seg(seg: MessageSegment):
+        return isinstance(seg, Mention) and seg.data['user_id'] == bot.self_id
+
+    # check the first segment
+    if _is_at_me_seg(event.message[0]):
         event.to_me = True
         event.message.pop(0)
-    else:
-        last_seg = event.message[-1]
-        if isinstance(last_seg, Mention) and last_seg.data['user_id'] == bot.self_id:
-            event.to_me = True
-            event.message.pop()
 
-    if len(event.message) == 0:  # 避免消息为空
-        event.message.append(Text.create(""))
+        # 去除mention之后的空格
+        if event.message and isinstance(event.message[0], Text):
+            event.message[0].plain_text = event.message[0].plain_text.lstrip()
+            if not event.message[0].plain_text:
+                del event.message[0]
+
+    if not event.to_me:
+        # check the last segment
+        i = -1
+        last_msg_seg = event.message[i]
+        if (
+                isinstance(last_msg_seg, Text)
+                and not last_msg_seg.plain_text.strip()
+                and len(event.message) >= 2
+        ):
+            i -= 1
+            last_msg_seg = event.message[i]
+
+        if _is_at_me_seg(last_msg_seg):
+            event.to_me = True
+            del event.message[i:]
+
+    # 避免消息为空
+    if event.message == 0:
+        event.message.append(MessageSegment.text(""))
 
 
 def _check_nickname(bot: "Bot", event: MessageEvent):
@@ -322,7 +347,7 @@ class Bot(BaseBot, ApiClient):
                 params["temp_target_id"] = user_id
                 api = "message_create"
             else:
-                raise ValueError(f"channel_id 和 user_id 不能同时为 None")
+                raise ValueError("channel_id 和 user_id 不能同时为 None")
 
         return await self.call_api(api, **params)
 
