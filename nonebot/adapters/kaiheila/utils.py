@@ -1,11 +1,11 @@
-import asyncio
 import json
-from collections import UserDict
+import asyncio
 from io import StringIO
-from typing import Any, Dict, Tuple, Optional, runtime_checkable, Protocol
+from collections import UserDict
+from typing import Any, Dict, Tuple, Optional, Protocol, runtime_checkable
 
-from nonebot.internal.driver import Response
 from nonebot.utils import logger_wrapper
+from nonebot.internal.driver import Response
 
 from .exception import ActionFailed
 
@@ -21,7 +21,7 @@ def code_to_emoji(emoji: str) -> bytes:
     return emoji.encode("unicode_escape")
 
 
-ESCAPE_CHAR = "!()*-.:>[\]`~"
+ESCAPE_CHAR = "!()*-.:>[\\]`~"
 
 
 def escape_kmarkdown(content: str):
@@ -31,7 +31,7 @@ def escape_kmarkdown(content: str):
     with StringIO() as f:
         for c in content:
             if c in ESCAPE_CHAR:
-                f.write('\\')
+                f.write("\\")
             f.write(c)
         return f.getvalue()
 
@@ -43,7 +43,7 @@ def unescape_kmarkdown(content: str):
     with StringIO() as f:
         i = 0
         while i < len(content):
-            if content[i] == '\\':
+            if content[i] == "\\":
                 if i + 1 < len(content) and content[i + 1] in ESCAPE_CHAR:
                     f.write(content[i + 1])
                     i += 2
