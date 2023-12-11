@@ -3,8 +3,7 @@ import inspect
 import json
 import re
 import zlib
-from collections.abc import Mapping
-from typing import Any, Union, Callable, Optional
+from typing import Any, Dict, List, Type, Union, Callable, Optional, Mapping
 
 from nonebot.adapters import Adapter as BaseAdapter
 from nonebot.drivers import (
@@ -49,8 +48,8 @@ class Adapter(BaseAdapter):
         super().__init__(driver, **kwargs)
         self.kaiheila_config: KaiheilaConfig = KaiheilaConfig(**self.config.dict())
         self.api_root = "https://www.kaiheila.cn/api/v3/"
-        self.connections: dict[str, WebSocket] = {}
-        self.tasks: list[asyncio.Task] = []
+        self.connections: Dict[str, WebSocket] = {}
+        self.tasks: List[asyncio.Task] = []
         self.setup()
 
     # OK
@@ -412,13 +411,13 @@ class Adapter(BaseAdapter):
             )
 
     @classmethod
-    def add_custom_model(cls, model: type[Event]) -> None:
+    def add_custom_model(cls, model: Type[Event]) -> None:
         if not model.__event__:
             raise ValueError("Event model's `__event__` attribute must be set")
         cls.event_models["." + model.__event__] = model
 
     @classmethod
-    def get_event_model(cls, event_name: str) -> list[type[Event]]:
+    def get_event_model(cls, event_name: str) -> List[Type[Event]]:
         """
         :说明:
 
