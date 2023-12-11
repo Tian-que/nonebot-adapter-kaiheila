@@ -3,18 +3,17 @@ import warnings
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, BinaryIO, Callable
+from typing import Any, Type, Union, Iterable, Dict, Optional, TypedDict, TYPE_CHECKING, Self, cast, Callable
 
 from nonebot.adapters import Message as BaseMessage
 from nonebot.adapters import MessageSegment as BaseMessageSegment
 from typing_extensions import override
 
 from .exception import UnsupportedMessageType, UnsupportedMessageOperation, KaiheilaAdapterException
-from .utils import unescape_kmarkdown, escape_kmarkdown
+from .utils import unescape_kmarkdown, escape_kmarkdown, BytesReadable
 
 if TYPE_CHECKING:
     from .bot import Bot
-    from os import PathLike
 
 
 class MessageSegment(BaseMessageSegment["Message"], ABC):
@@ -104,7 +103,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Image.create(file_key)
 
     @staticmethod
-    def local_image(file: Union[str, 'PathLike[str]', BinaryIO, bytes]) -> "LocalImage":
+    def local_image(file: Union[str, Path, BytesReadable, bytes]) -> "LocalImage":
         return LocalImage.create(file)
 
     @staticmethod
@@ -113,7 +112,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Video.create(file_key, title)
 
     @staticmethod
-    def local_video(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def local_video(file: Union[str, Path, BytesReadable, bytes],
                     title: Optional[str] = None) -> "LocalVideo":
         return LocalVideo.create(file, title)
 
@@ -124,9 +123,9 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return Audio.create(file_key, title, cover_file_key)
 
     @staticmethod
-    def local_audio(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def local_audio(file: Union[str, Path, BytesReadable, bytes],
                     title: Optional[str] = None,
-                    cover: Union[None, str, 'PathLike[str]', BinaryIO, bytes] = None) -> "LocalAudio":
+                    cover: Union[None, str, Path, BytesReadable, bytes] = None) -> "LocalAudio":
         return LocalAudio.create(file, title, cover)
 
     @staticmethod
@@ -135,7 +134,7 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
         return File.create(file_key, title)
 
     @staticmethod
-    def local_file(file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def local_file(file: Union[str, Path, BytesReadable, bytes],
                    title: Optional[str] = None) -> "LocalFile":
         return LocalFile.create(file, title)
 
@@ -175,27 +174,8 @@ class ReceivableMessageSegment(MessageSegment):
 
 
 class VirtualMessageSegment(MessageSegment):
-    """
-    虚拟消息段。本来不在消息中，但是从事件中提取出来的消息段。方便用户处理特殊元素。
-
-    比如原始消息是[KMarkdown: /command (met)123(met)]的话，就变成[KMarkdown: /command ](met)123(met)][Mention: 123]
-    """
-
-    if TYPE_CHECKING:
-        class _VirtualData(TypedDict):
-            for_send: bool
-            """
-            发送时，若for_send为True，则会构造同等的KMakrdown并发送，否则忽略该消息段。
-            """
-
-        data: _VirtualData
-
-    def _actual_seg(self) -> Optional[MessageSegment]:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         return None
-
-
-class SendOnlyMessageSegment(MessageSegment):
-    ...
 
 
 class Text(ReceivableMessageSegment):
@@ -442,6 +422,10 @@ class File(Media):
     def __str__(self) -> str:
         return "[文件]"
 
+    async def _serialize_for_send(self, bot: "Bot") -> Dict:
+        # 转化为卡片消息发送
+        return await _convert_to_card_message(Message(self))._serialize_for_send(bot)
+
     @classmethod
     @override
     def _deserialize(cls, raw_data: Dict) -> Self:
@@ -456,7 +440,7 @@ class File(Media):
         })
 
 
-class LocalMedia(SendOnlyMessageSegment):
+class LocalMedia(VirtualMessageSegment):
     if TYPE_CHECKING:
         class _LocalMediaData(TypedDict):
             content: Optional[bytes]
@@ -473,11 +457,11 @@ class LocalMedia(SendOnlyMessageSegment):
         return file_key
 
     @classmethod
-    def _handle_file(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def _handle_file(cls, file: Union[str, Path, BytesReadable, bytes],
                      title: Optional[str] = None) -> "LocalMedia._LocalMediaData":
         data = {"title": title, "content": None, "file": None}
 
-        if isinstance(file, BinaryIO):
+        if isinstance(file, BytesReadable):
             data["content"] = file.read()
         elif isinstance(file, bytes):
             data["content"] = file
@@ -500,12 +484,12 @@ class LocalImage(LocalMedia):
         return "[本地图片]"
 
     @override
-    async def _serialize_for_send(self, bot: "Bot") -> Dict:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         file_key = await self._upload(bot)
-        return await Image.create(file_key)._serialize_for_send(bot)
+        return Image.create(file_key)
 
     @classmethod
-    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes]) -> "LocalImage":
+    def create(cls, file: Union[str, Path, BytesReadable, bytes]) -> "LocalImage":
         data = cls._handle_file(file)
         return cls("local_image", data)
 
@@ -521,12 +505,12 @@ class LocalVideo(LocalMedia):
         return "[本地视频]"
 
     @override
-    async def _serialize_for_send(self, bot: "Bot") -> Dict:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         file_key = await self._upload(bot)
-        return await Video.create(file_key)._serialize_for_send(bot)
+        return Video.create(file_key, self.data['title'])
 
     @classmethod
-    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def create(cls, file: Union[str, Path, BytesReadable, bytes],
                title: Optional[str] = None) -> "LocalVideo":
         data = cls._handle_file(file, title)
         return cls("local_video", data)
@@ -543,12 +527,12 @@ class LocalFile(LocalMedia):
         return "[本地文件]"
 
     @override
-    async def _serialize_for_send(self, bot: "Bot") -> Dict:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         file_key = await self._upload(bot)
-        return await File.create(file_key)._serialize_for_send(bot)
+        return File.create(file_key, self.data['title'])
 
     @classmethod
-    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def create(cls, file: Union[str, Path, BytesReadable, bytes],
                filename: Optional[str] = None) -> "LocalFile":
         data = cls._handle_file(file, filename)
         return cls("local_file", data)
@@ -572,7 +556,7 @@ class LocalAudio(LocalMedia):
         return "[本地音频]"
 
     @override
-    async def _serialize_for_send(self, bot: "Bot") -> Dict:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         file_key = await self._upload(bot)
 
         if self.data["cover_content"] or self.data["cover_file"]:
@@ -580,12 +564,12 @@ class LocalAudio(LocalMedia):
         else:
             cover_file_key = None
 
-        return await Audio.create(file_key, cover_file_key=cover_file_key)._serialize_for_send(bot)
+        return Audio.create(file_key, self.data['title'], cover_file_key)
 
     @classmethod
-    def create(cls, file: Union[str, 'PathLike[str]', BinaryIO, bytes],
+    def create(cls, file: Union[str, Path, BytesReadable, bytes],
                filename: Optional[str] = None,
-               cover: Union[None, str, 'PathLike[str]', BinaryIO, bytes] = None) -> "LocalAudio":
+               cover: Union[None, str, Path, BytesReadable, bytes] = None) -> "LocalAudio":
         data = cls._handle_file(file, filename)
 
         if cover is not None:
@@ -600,7 +584,7 @@ class LocalAudio(LocalMedia):
 
 class Quote(VirtualMessageSegment):
     if TYPE_CHECKING:
-        class _QuoteData(VirtualMessageSegment._VirtualData):
+        class _QuoteData(TypedDict):
             msg_id: str
 
         data: _QuoteData
@@ -619,7 +603,7 @@ class Quote(VirtualMessageSegment):
 
 class Mention(VirtualMessageSegment):
     if TYPE_CHECKING:
-        class _MentionData(VirtualMessageSegment._VirtualData):
+        class _MentionData(TypedDict):
             user_id: str
             username: Optional[str]
 
@@ -633,7 +617,7 @@ class Mention(VirtualMessageSegment):
             return f"@用户{self.data['user_id']}"
 
     @override
-    def _actual_seg(self) -> KMarkdown:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         return KMarkdown.create(
             f"(met){self.data['user_id']}(met)",
             str(self)
@@ -650,7 +634,7 @@ class Mention(VirtualMessageSegment):
 
 class MentionRole(VirtualMessageSegment):
     if TYPE_CHECKING:
-        class _MentionData(VirtualMessageSegment._VirtualData):
+        class _MentionData(TypedDict):
             role_id: str
             name: Optional[str]
 
@@ -664,7 +648,7 @@ class MentionRole(VirtualMessageSegment):
             return f"@角色{self.data['role_id']}"
 
     @override
-    def _actual_seg(self) -> KMarkdown:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         return KMarkdown.create(
             f"(rol){self.data['role_id']}(rol)",
             str(self)
@@ -685,7 +669,7 @@ class MentionAll(VirtualMessageSegment):
         return f"@全体成员"
 
     @override
-    def _actual_seg(self) -> KMarkdown:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         return KMarkdown.create(
             f"(met)all(met)",
             str(self)
@@ -702,7 +686,7 @@ class MentionHere(VirtualMessageSegment):
         return f"@在线成员"
 
     @override
-    def _actual_seg(self) -> KMarkdown:
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
         return KMarkdown.create(
             f"(met)here(met)",
             str(self)
@@ -834,7 +818,7 @@ class MessageSerializer:
         new_message = Message()
         for seg in self.message:
             if isinstance(seg, VirtualMessageSegment):
-                actual = seg._actual_seg() if seg.data["for_send"] else None
+                actual = await seg._actual_seg(bot)
                 if actual is not None:
                     new_message.append(actual)
             else:
