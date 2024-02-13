@@ -142,16 +142,16 @@ class Kmarkdown(BaseModel):
 
 class EventMessage(BaseModel):
     type: Union[int, str]
-    guild_id: Optional[str]
-    channel_name: Optional[str]
-    mention: Optional[List]
-    mention_all: Optional[bool]
-    mention_roles: Optional[List]
-    mention_here: Optional[bool]
-    nav_channels: Optional[List]
+    guild_id: Optional[str] = None
+    channel_name: Optional[str] = None
+    mention: Optional[List] = None
+    mention_all: Optional[bool] = None
+    mention_roles: Optional[List] = None
+    mention_here: Optional[bool] = None
+    nav_channels: Optional[List] = None
     author: User
 
-    kmarkdown: Optional[Kmarkdown]
+    kmarkdown: Optional[Kmarkdown] = None
 
     code: Optional[str] = None
     attachments: Optional[Attachment] = None

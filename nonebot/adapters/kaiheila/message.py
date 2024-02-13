@@ -354,7 +354,7 @@ class Video(Media):
     if TYPE_CHECKING:
 
         class _VideoData(Media._MediaData):
-            title: Optional[str]
+            title: Optional[str] = None
 
         data: _VideoData
 
@@ -383,8 +383,8 @@ class Audio(Media):
     if TYPE_CHECKING:
 
         class _AudioData(Media._MediaData):
-            title: Optional[str]
-            cover_file_key: Optional[str]
+            title: Optional[str] = None
+            cover_file_key: Optional[str] = None
 
         data: _AudioData
 
@@ -425,7 +425,7 @@ class File(Media):
     if TYPE_CHECKING:
 
         class _FileData(Media._MediaData):
-            title: Optional[str]
+            title: Optional[str] = None
 
         data: _FileData
 
@@ -458,9 +458,9 @@ class LocalMedia(VirtualMessageSegment):
     if TYPE_CHECKING:
 
         class _LocalMediaData(TypedDict):
-            content: Optional[bytes]
-            title: Optional[str]
-            file: Optional[Path]
+            content: Optional[bytes] = None
+            title: Optional[str] = None
+            file: Optional[Path] = None
 
         data: _LocalMediaData
 
@@ -564,8 +564,8 @@ class LocalAudio(LocalMedia):
     if TYPE_CHECKING:
 
         class _LocalAudioData(LocalMedia._LocalMediaData):
-            cover_content: Optional[bytes]
-            cover_file: Optional[Path]
+            cover_content: Optional[bytes] = None
+            cover_file: Optional[Path] = None
 
         data: _LocalAudioData
 
@@ -635,7 +635,7 @@ class Mention(VirtualMessageSegment):
 
         class _MentionData(TypedDict):
             user_id: str
-            username: Optional[str]
+            username: Optional[str] = None
 
         data: _MentionData
 
@@ -662,7 +662,7 @@ class MentionRole(VirtualMessageSegment):
 
         class _MentionData(TypedDict):
             role_id: str
-            name: Optional[str]
+            name: Optional[str] = None
 
         data: _MentionData
 
