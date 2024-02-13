@@ -14,7 +14,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-nonebot2 = "^2.0.0"
+nonebot2 = "^2.2.0"
 typing-extensions = "^4.8.0"
 
 [tool.poetry.group.dev.dependencies]

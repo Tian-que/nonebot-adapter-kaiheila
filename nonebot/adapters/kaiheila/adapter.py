@@ -7,9 +7,9 @@ from typing_extensions import override
 from typing import Any, Dict, List, Type, Union, Mapping, Callable, Optional
 
 from pygtrie import StringTrie
-from pydantic import parse_obj_as
 from nonebot.utils import escape_tag
 from nonebot.internal.driver import Response
+from nonebot.compat import model_dump, type_validate_python
 from nonebot.drivers import (
     URL,
     Driver,
@@ -20,6 +20,7 @@ from nonebot.drivers import (
     WebSocketClientMixin,
 )
 
+from nonebot import get_plugin_config
 from nonebot.adapters import Adapter as BaseAdapter
 
 from . import event
@@ -64,7 +65,7 @@ class Adapter(BaseAdapter):
     @override
     def __init__(self, driver: Driver, **kwargs: Any):
         super().__init__(driver, **kwargs)
-        self.kaiheila_config: KaiheilaConfig = KaiheilaConfig(**self.config.dict())
+        self.kaiheila_config: KaiheilaConfig = get_plugin_config(KaiheilaConfig)
         self.api_root = "https://www.kaiheila.cn/api/v3/"
         self.connections: Dict[str, WebSocket] = {}
         self.tasks: List[asyncio.Task] = []
@@ -182,7 +183,7 @@ class Adapter(BaseAdapter):
         try:
             resp = await self.request(request)
             result = _handle_api_result(resp)
-            return parse_obj_as(result_type, result) if result_type else None
+            return type_validate_python(result_type, result) if result_type else None
         except Exception as e:
             raise e
 
@@ -372,7 +373,7 @@ class Adapter(BaseAdapter):
                 data["post_type"] = "meta_event"
                 data["sub_type"] = "connect"
                 data["meta_event_type"] = "lifecycle"
-                return LifecycleMetaEvent.parse_obj(data)
+                return type_validate_python(LifecycleMetaEvent, data)
             elif json_data["d"]["code"] == 40103:
                 raise ReconnectError
             elif json_data["d"]["code"] == 40101:
@@ -385,7 +386,7 @@ class Adapter(BaseAdapter):
                 "TRACE",
                 f"<y>Bot {escape_tag(str(self_id))}</y> HeartBeat",
             )
-            return HeartbeatMetaEvent.parse_obj(data)
+            return type_validate_python(HeartbeatMetaEvent, data)
         elif signal == SignalTypes.EVENT:
             ResultStore.set_sn(self_id, json_data["sn"])
         elif signal == SignalTypes.RECONNECT:
@@ -440,13 +441,13 @@ class Adapter(BaseAdapter):
             models = cls.get_event_model(post_type + detail_type + sub_type)
             for model in models:
                 try:
-                    event = model.parse_obj(data)
+                    event = type_validate_python(model, data)
                     break
                 except Exception as e:
                     log("DEBUG", "Event Parser Error", e)
             else:
-                event = Event.parse_obj(json_data)
-            log("DEBUG", str(event.dict()))
+                event = type_validate_python(Event, json_data)
+            log("DEBUG", str(model_dump(event)))
             return event
         except Exception as e:
             log(

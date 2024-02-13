@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from pydantic import Field, BaseModel
+from nonebot.compat import PYDANTIC_V2, ConfigDict
 
 
 class BotConfig(BaseModel):
@@ -12,9 +13,16 @@ class BotConfig(BaseModel):
 
     token: str
 
-    class Config:
-        extra = "ignore"
-        allow_population_by_field_name = True
+    if PYDANTIC_V2:
+        model_config = ConfigDict(
+            extra="ignore",
+            populate_by_name=True,
+        )
+    else:
+
+        class Config(ConfigDict):
+            extra = "ignore"
+            allow_population_by_field_name = True
 
 
 class Config(BaseModel):
@@ -36,6 +44,13 @@ class Config(BaseModel):
     kaiheila_bots: List["BotConfig"] = Field(default_factory=list)
     compress: Optional[bool] = Field(default=False)
 
-    class Config:
-        extra = "allow"
-        allow_population_by_field_name = True
+    if PYDANTIC_V2:
+        model_config = ConfigDict(
+            extra="allow",
+            populate_by_name=True,
+        )
+    else:
+
+        class Config(ConfigDict):
+            extra = "allow"
+            allow_population_by_field_name = True
