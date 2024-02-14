@@ -905,12 +905,12 @@ class MessageDeserializer:
                 f"(rol){mention['role_id']}(rol)", f"@{mention['name']}"
             )
 
-        if self.data["mention_all"]:
+        if self.data.get("mention_all"):
             content_with_raw_mention = content_with_raw_mention.replace(
                 "(met)all(met)", "@全体成员"
             )
 
-        if self.data["mention_here"]:
+        if self.data.get("mention_here"):
             content_with_raw_mention = content_with_raw_mention.replace(
                 "(met)here(met)", "@在线成员"
             )
@@ -956,12 +956,12 @@ class MessageDeserializer:
                 lambda: MentionRole.create(mention["role_id"], mention["name"]),
             )
 
-        if self.data["mention_all"]:
+        if self.data.get("mention_all"):
             message = self.split_text(
                 message, "(met)all(met)", lambda: MentionAll.create()
             )
 
-        if self.data["mention_here"]:
+        if self.data.get("mention_here"):
             message = self.split_text(
                 message, "(met)here(met)", lambda: MentionHere.create()
             )
