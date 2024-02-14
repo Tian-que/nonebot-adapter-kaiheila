@@ -257,7 +257,11 @@ class Adapter(BaseAdapter):
                             data = await ws.receive()
                             data = data_decompress_func(data)
                             json_data = json.loads(data)
-                            event = self.json_to_event(json_data, bot and bot.self_id)
+                            event = self.json_to_event(
+                                json_data,
+                                bot and bot.self_id,
+                                ignore_events=self.kaiheila_config.kaiheila_ignore_events,
+                            )
                             if not event:
                                 continue
                             if not bot:
@@ -360,6 +364,8 @@ class Adapter(BaseAdapter):
         cls,
         json_data: Any,
         self_id: Optional[str] = None,
+        *,
+        ignore_events: Optional[List[str]] = None,
     ) -> Union[OriginEvent, Event, None]:
         if not isinstance(json_data, dict):
             return None
@@ -437,7 +443,13 @@ class Adapter(BaseAdapter):
             sub_type = data.get("sub_type")
             sub_type = f".{sub_type}" if sub_type else ""
 
-            models = cls.get_event_model(post_type + detail_type + sub_type)
+            event_name = post_type + detail_type + sub_type
+            if ignore_events and any(
+                ignore_event in event_name for ignore_event in ignore_events
+            ):
+                return
+
+            models = cls.get_event_model(event_name)
             for model in models:
                 try:
                     event = model.parse_obj(data)

@@ -35,6 +35,7 @@ class Config(BaseModel):
 
     kaiheila_bots: List["BotConfig"] = Field(default_factory=list)
     compress: Optional[bool] = Field(default=False)
+    kaiheila_ignore_events: List[str] = Field(default_factory=list)
 
     class Config:
         extra = "allow"
