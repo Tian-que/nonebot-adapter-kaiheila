@@ -4,7 +4,7 @@ import zlib
 import asyncio
 import inspect
 from typing_extensions import override
-from typing import Any, Dict, List, Type, Union, Mapping, Callable, Optional
+from typing import Any, Dict, List, Tuple, Type, Union, Mapping, Callable, Optional
 
 from pygtrie import StringTrie
 from pydantic import parse_obj_as
@@ -365,7 +365,7 @@ class Adapter(BaseAdapter):
         json_data: Any,
         self_id: Optional[str] = None,
         *,
-        ignore_events: Optional[List[str]] = None,
+        ignore_events: Optional[Tuple[str, ...]] = None,
     ) -> Union[OriginEvent, Event, None]:
         if not isinstance(json_data, dict):
             return None
@@ -444,9 +444,7 @@ class Adapter(BaseAdapter):
             sub_type = f".{sub_type}" if sub_type else ""
 
             event_name: str = post_type + detail_type + sub_type
-            if ignore_events and any(
-                event_name.startswith(ignore_event) for ignore_event in ignore_events
-            ):
+            if ignore_events and event_name.startswith(ignore_events):
                 return
 
             models = cls.get_event_model(event_name)

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from pydantic import Field, BaseModel
 
@@ -35,7 +35,7 @@ class Config(BaseModel):
 
     kaiheila_bots: List["BotConfig"] = Field(default_factory=list)
     compress: Optional[bool] = Field(default=False)
-    kaiheila_ignore_events: List[str] = Field(default_factory=list)
+    kaiheila_ignore_events: Tuple[str, ...] = Field(default_factory=tuple)
 
     class Config:
         extra = "allow"
