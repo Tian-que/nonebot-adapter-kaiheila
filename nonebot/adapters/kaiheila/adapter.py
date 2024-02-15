@@ -443,9 +443,9 @@ class Adapter(BaseAdapter):
             sub_type = data.get("sub_type")
             sub_type = f".{sub_type}" if sub_type else ""
 
-            event_name = post_type + detail_type + sub_type
+            event_name: str = post_type + detail_type + sub_type
             if ignore_events and any(
-                ignore_event in event_name for ignore_event in ignore_events
+                event_name.startswith(ignore_event) for ignore_event in ignore_events
             ):
                 return
 
