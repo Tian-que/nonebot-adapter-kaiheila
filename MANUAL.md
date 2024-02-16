@@ -11,9 +11,44 @@
 ## 安装 adapter
 请使用 pip 或项目包管理工具进行安装
 
-```shell
-pip install nonebot-adapter-kaiheila
-```
+<details open>
+<summary>使用 nb-cli 安装</summary>
+在 nonebot2 项目的根目录下打开命令行, 输入以下指令即可安装
+
+    nb adapter install nonebot-adapter-kaiheila
+
+</details>
+
+<details>
+<summary>使用包管理器安装</summary>
+在 nonebot2 项目的插件目录下, 打开命令行, 根据你使用的包管理器, 输入相应的安装命令
+
+<details>
+<summary>pip</summary>
+
+    pip install nonebot-adapter-kaiheila
+</details>
+<details>
+<summary>pdm</summary>
+
+    pdm add nonebot-adapter-kaiheila
+</details>
+<details>
+<summary>poetry</summary>
+
+    poetry add nonebot-adapter-kaiheila
+</details>
+<details>
+<summary>conda</summary>
+
+    conda install nonebot-adapter-kaiheila
+</details>
+
+打开 nonebot2 项目根目录下的 `pyproject.toml` 文件, 在 `[tool.nonebot]` 部分追加写入
+
+    plugins = ["nonebot-adapter-kaiheila"]
+
+</details>
 
 ## 配置 Kaiheila Bot
 
@@ -49,6 +84,18 @@ nb driver install httpx
 
 ```dotenv
 driver=~httpx+~websockets
+```
+
+## 可选配置项
+```dotenv
+kaiheila_ignore_events = ("notice.")
+# 忽略指定字符串开头的消息类型,参数为tuple[str],里面可以填写多个event_name
+# notice.guild_member_online  忽略成员上线通知事件
+# notice.guild_member_ 忽略成员上线/下线通知事件
+# notice. 忽略所有通知事件
+
+kaiheila_ignore_else_bots = True
+# 忽略其他bot消息，默认启用
 ```
 
 ## 第一次对话
