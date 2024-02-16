@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nonebot-adapter-kaiheila"
-version = "0.3.0"
+version = "0.3.1"
 description = "kaiheila adapter for nonebot2"
 authors = ["Tian-que <1605206150@qq.com>", "ssttkkl <huang.wen.long@hotmail.com>"]
 license = "MIT"
