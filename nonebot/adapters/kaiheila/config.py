@@ -44,6 +44,7 @@ class Config(BaseModel):
     kaiheila_bots: List["BotConfig"] = Field(default_factory=list)
     compress: Optional[bool] = Field(default=False)
     kaiheila_ignore_events: Tuple[str, ...] = Field(default_factory=tuple)
+    kaiheila_ignore_else_bots: Optional[bool] = Field(default=True)
 
     if PYDANTIC_V2:
         model_config = ConfigDict(
