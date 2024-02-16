@@ -33,7 +33,7 @@ from .model import (
 
 class ApiMethod(NamedTuple):
     method: str
-    restype: Optional[type]
+    restype: Optional[type] = None
 
 
 api_method_map = {

@@ -5,11 +5,13 @@ from typing_extensions import Literal, override
 
 from pygtrie import StringTrie
 from nonebot.utils import escape_tag
-from pydantic import Field, HttpUrl, BaseModel, validator, root_validator
+from nonebot.compat import model_dump
+from pydantic import Field, HttpUrl, BaseModel, validator
 
 from nonebot.adapters import Event as BaseEvent
 
 from .utils import AttrDict
+from .compat import model_validator
 from .exception import NoLogException
 from .message import Message, MessageDeserializer
 from .api import Role, User, Emoji, Guild, Channel
@@ -109,7 +111,7 @@ class OriginEvent(BaseEvent):
 
     @override
     def get_event_description(self) -> str:
-        return escape_tag(str(self.dict()))
+        return escape_tag(str(model_dump(self)))
 
     @override
     def get_message(self) -> Message:
@@ -140,23 +142,23 @@ class Kmarkdown(BaseModel):
 
 class EventMessage(BaseModel):
     type: Union[int, str]
-    guild_id: Optional[str]
-    channel_name: Optional[str]
-    mention: Optional[List]
-    mention_all: Optional[bool]
-    mention_roles: Optional[List]
-    mention_here: Optional[bool]
-    nav_channels: Optional[List]
+    guild_id: Optional[str] = None
+    channel_name: Optional[str] = None
+    mention: Optional[List] = None
+    mention_all: Optional[bool] = None
+    mention_roles: Optional[List] = None
+    mention_here: Optional[bool] = None
+    nav_channels: Optional[List] = None
     author: User
 
-    kmarkdown: Optional[Kmarkdown]
+    kmarkdown: Optional[Kmarkdown] = None
 
     code: Optional[str] = None
     attachments: Optional[Attachment] = None
 
     content: Message
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def parse_message(cls, values: dict):
         values["content"] = MessageDeserializer(
             values["type"],
@@ -196,7 +198,7 @@ class Event(OriginEvent):
 
     @override
     def get_event_description(self) -> str:
-        return escape_tag(str(self.dict()))
+        return escape_tag(str(model_dump(self)))
 
     @override
     def get_plaintext(self) -> str:
