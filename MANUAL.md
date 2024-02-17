@@ -94,7 +94,7 @@ kaiheila_ignore_events = ("notice.")
 # notice.guild_member_ 忽略成员上线/下线通知事件
 # notice. 忽略所有通知事件
 
-kaiheila_ignore_else_bots = True
+kaiheila_ignore_other_bots = True
 # 忽略其他bot消息，默认启用
 ```
 
