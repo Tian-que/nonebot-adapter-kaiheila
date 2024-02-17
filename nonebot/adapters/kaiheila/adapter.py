@@ -401,12 +401,12 @@ class Adapter(BaseAdapter):
             # 不存在的signal，resume是不可能resume的，这辈子都不会resume的，出了问题直接重连
             return
 
-        # 屏蔽 Bot 自身和其他 Bot 的消息
-        if json_data["d"].get("author_id") == self_id or json_data["d"].get(
-            "extra", {}
-        ).get("author", {}).get("bot"):
+        # 屏蔽 Bot 自身
+        if json_data["d"].get("author_id") == self_id :
             return
-
+        # 屏蔽其他Bot消息
+        if json_data["d"].get("extra", {}).get("author", {}).get("bot") and cls.kaiheila_config.kaiheila_ignore_else_bots:
+            return
         try:
             data = json_data["d"]
             extra = data.get("extra")
