@@ -66,18 +66,16 @@ class Adapter(BaseAdapter):
     def __init__(self, driver: Driver, **kwargs: Any):
         super().__init__(driver, **kwargs)
         self.kaiheila_config: KaiheilaConfig = get_plugin_config(KaiheilaConfig)
-        self.api_root = "https://www.kaiheila.cn/api/v3/"
+        self.api_root = "https://www.kookapp.cn/api/v3/"
         self.connections: Dict[str, WebSocket] = {}
         self.tasks: List[asyncio.Task] = []
         self.setup()
 
-    # OK
     @classmethod
     @override
     def get_name(cls) -> str:
         return "Kaiheila"
 
-    # OK
     def setup(self) -> None:
         if not isinstance(self.driver, HTTPClientMixin):
             raise RuntimeError(
@@ -147,7 +145,7 @@ class Adapter(BaseAdapter):
         data = dict(data) if data is not None else {}
 
         # 判断 POST 或 GET
-        method = get_api_method(api) if not data.get("method") else data.get("method")
+        method = data.get("method") or get_api_method(api)
 
         headers = data.get("headers", {})
 
@@ -193,7 +191,7 @@ class Adapter(BaseAdapter):
     async def _get_gateway(self, token: str) -> URL:
         result = await self._do_call_api(
             "gateway/index",
-            data={"compress": 1 if self.kaiheila_config.compress else 0},
+            data={"compress": int(self.kaiheila_config.compress)},
             token=token,
         )
         return result.url
