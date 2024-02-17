@@ -10,9 +10,9 @@ class User(BaseModel):
     https://developer.kaiheila.cn/doc/objects
     """
 
-    id_: Optional[str] = Field(None, alias="id")
+    id_: str = Field(alias="id")
     """用户的 id"""
-    username: Optional[str] = None
+    username: str
     """用户的名称"""
     nickname: Optional[str] = None
     """用户在当前服务器的昵称"""

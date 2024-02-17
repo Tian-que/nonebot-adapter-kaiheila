@@ -264,10 +264,7 @@ class Adapter(BaseAdapter):
                             if not event:
                                 continue
                             if not bot:
-                                if (
-                                    not isinstance(event, LifecycleMetaEvent)
-                                    or event.sub_type != "connect"
-                                ):
+                                if not isinstance(event, LifecycleMetaEvent):
                                     continue
                                 bot_info = await self._get_bot_info(bot_config.token)
                                 self_id = bot_info.id_
