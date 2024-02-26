@@ -88,8 +88,8 @@ driver=~httpx+~websockets
 
 ## 可选配置项
 ```dotenv
-kaiheila_ignore_events = ("notice.")
-# 忽略指定字符串开头的消息类型,参数为tuple[str],里面可以填写多个event_name
+kaiheila_ignore_events = ["notice."]
+# 忽略指定字符串开头的消息类型,参数为list[str],里面可以填写多个event_name
 # notice.guild_member_online  忽略成员上线通知事件
 # notice.guild_member_ 忽略成员上线/下线通知事件
 # notice. 忽略所有通知事件
