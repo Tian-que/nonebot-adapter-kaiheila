@@ -459,7 +459,7 @@ class Adapter(BaseAdapter):
                     log("DEBUG", "Event Parser Error", e)
             else:
                 event = type_validate_python(Event, json_data)
-            log("DEBUG", str(model_dump(event)))
+            log("DEBUG", str(model_dump(event)).replace("<","\<"))
             return event
         except Exception as e:
             log(
