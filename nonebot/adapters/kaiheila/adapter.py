@@ -261,7 +261,7 @@ class Adapter(BaseAdapter):
                             event = self.json_to_event(
                                 json_data,
                                 bot and bot.self_id,
-                                ignore_events=self.kaiheila_config.kaiheila_ignore_events,
+                                kaiheila_config=self.kaiheila_config,
                             )
                             if not event:
                                 continue
@@ -366,7 +366,7 @@ class Adapter(BaseAdapter):
         json_data: Any,
         self_id: Optional[str] = None,
         *,
-        ignore_events: Optional[Tuple[str, ...]] = None,
+        kaiheila_config: Optional[KaiheilaConfig] = None,
     ) -> Union[OriginEvent, Event, None]:
         if not isinstance(json_data, dict):
             return None
@@ -405,7 +405,7 @@ class Adapter(BaseAdapter):
         if json_data["d"].get("author_id") == self_id :
             return
         # 屏蔽其他Bot消息
-        if json_data["d"].get("extra", {}).get("author", {}).get("bot") and cls.kaiheila_config.kaiheila_ignore_else_bots:
+        if json_data["d"].get("extra", {}).get("author", {}).get("bot") and kaiheila_config.kaiheila_ignore_else_bots:
             return
         try:
             data = json_data["d"]
@@ -447,7 +447,7 @@ class Adapter(BaseAdapter):
             sub_type = f".{sub_type}" if sub_type else ""
 
             event_name: str = post_type + detail_type + sub_type
-            if ignore_events and event_name.startswith(ignore_events):
+            if kaiheila_config.ignore_events and event_name.startswith(kaiheila_config.ignore_events):
                 return
 
             models = cls.get_event_model(event_name)
