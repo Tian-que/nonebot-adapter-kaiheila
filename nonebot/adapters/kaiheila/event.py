@@ -72,7 +72,7 @@ class Extra(BaseModel):
     channel_name: Optional[str] = Field(None)
     mention: Optional[List[str]] = Field(None)
     mention_all: Optional[bool] = Field(None)
-    mention_roles: Optional[List[str]] = Field(None)
+    mention_roles: Optional[List[int]] = Field(None)
     mention_here: Optional[bool] = Field(None)
     author: Optional[User] = Field(None)
     body: Optional[AttrDict] = Field(None)
