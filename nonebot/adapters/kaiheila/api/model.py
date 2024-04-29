@@ -302,7 +302,7 @@ class BaseMessage(BaseModel):
     """消息内容"""
     embeds: Optional[List[dict]] = None
     """超链接解析数据"""
-    attachments: Optional[Union[bool, Attachments]] = None
+    attachments: Optional[Union[bool, Attachments, List[Attachments]]] = None
     """附加的多媒体数据"""
     create_at: Optional[int] = None
     """创建时间"""
@@ -314,7 +314,7 @@ class BaseMessage(BaseModel):
     """"""
     read_status: Optional[bool] = None
     """是否已读"""
-    quote: Optional[Quote] = None
+    quote: Optional[Union[str, Quote]] = None
     """引用数据"""
     mention_info: Optional[MentionInfo] = None
     """引用特定用户或特定角色的信息"""
