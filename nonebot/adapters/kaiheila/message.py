@@ -175,6 +175,11 @@ class MessageSegment(BaseMessageSegment["Message"], ABC):
     def mention_here() -> "MentionHere":
         return MentionHere.create()
 
+    @staticmethod
+    def mention_channel(channel_id: str) -> "MentionChannel":
+        """临时添加到这里"""
+        return MentionChannel.create(channel_id)
+
 
 class ReceivableMessageSegment(MessageSegment):
     @classmethod
@@ -708,6 +713,36 @@ class MentionHere(VirtualMessageSegment):
     @classmethod
     def create(cls) -> "MentionHere":
         return cls("mention_here", {"for_send": True})
+
+
+class MentionChannel(VirtualMessageSegment):
+    if TYPE_CHECKING:
+
+        class _MentionChannelData(TypedDict):
+            channel_id: str
+            channel_name: Optional[str] = None
+
+        data: _MentionChannelData
+
+    @override
+    def __str__(self) -> str:
+        if self.data["channel_name"]:
+            return f"@{self.data['channel_name']}"
+        else:
+            return f"@频道{self.data['channel_id']}"
+
+    @override
+    async def _actual_seg(self, bot: "Bot") -> Optional[MessageSegment]:
+        return KMarkdown.create(f"(chn){self.data['channel_id']}(chn)", str(self))
+
+    @classmethod
+    def create(
+        cls, channel_id: str, channel_name: Optional[str] = None
+    ) -> "MentionChannel":
+        return cls(
+            "mention_channel",
+            {"channel_id": channel_id, "channel_name": channel_name, "for_send": True},
+        )
 
 
 class Message(BaseMessage[MessageSegment]):
