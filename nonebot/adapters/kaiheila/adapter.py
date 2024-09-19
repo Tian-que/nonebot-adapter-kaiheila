@@ -381,11 +381,13 @@ class Adapter(BaseAdapter):
                 data["meta_event_type"] = "lifecycle"
                 return type_validate_python(LifecycleMetaEvent, data)
             elif json_data["d"]["code"] == 40103:
-                raise ReconnectError
+                raise TokenError("token 过期")
             elif json_data["d"]["code"] == 40101:
                 raise TokenError("无效的 token")
             elif json_data["d"]["code"] == 40102:
                 raise TokenError("token 验证失败")
+            elif json_data["d"]["code"] == 40100:
+                raise TokenError("缺少参数")
         elif signal == SignalTypes.PONG:
             data = {"post_type": "meta_event", "meta_event_type": "heartbeat"}
             log(
