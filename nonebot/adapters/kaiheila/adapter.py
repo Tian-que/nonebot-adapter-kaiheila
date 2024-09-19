@@ -213,36 +213,47 @@ class Adapter(BaseAdapter):
         )
 
     async def _forward_ws(self, bot_config: BotConfig) -> None:
+        self_id: Optional[str] = None
+        need_reconnect = False
+        original_url: Optional[str] = None
+        session_id: Optional[str] = None
         bot: Optional[Bot] = None
 
         heartbeat_task: Optional[asyncio.Task] = None
 
         while True:
             try:
-                try:
-                    url = URL(await self._get_gateway(bot_config.token))
-                except TokenError as e:
-                    log(
-                        "ERROR",
-                        f"<r><bg #f8bbd0>Token {escape_tag(bot_config.token)} was invalid. "
-                        "Please get a new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
-                        e,
+                if need_reconnect:
+                    sn = ResultStore.get_sn(self_id)
+                    log("INFO", f"Reconnecting..., session_id: {session_id}, sn: {sn}")
+                    url = original_url + "&".join(
+                        ["", "resume=1", f"sn={sn}", f"session_id={session_id}"]
                     )
-                    return
-                except Exception as e:
-                    log(
-                        "ERROR",
-                        f"<r><bg #f8bbd0>Failed to get the Gateway URL for token {escape_tag(bot_config.token)}. "
-                        "Trying to reconnect...</bg #f8bbd0></r>",
-                        e,
-                    )
-                    continue
+                else:
+                    try:
+                        url = original_url = await self._get_gateway(bot_config.token)
+                    except TokenError as e:
+                        log(
+                            "ERROR",
+                            f"<r><bg #f8bbd0>Token {escape_tag(bot_config.token)} was invalid. "
+                            "Please get a new token from https://developer.kaiheila.cn/app/index </bg #f8bbd0></r>",
+                            e,
+                        )
+                        return
+                    except Exception as e:
+                        log(
+                            "ERROR",
+                            f"<r><bg #f8bbd0>Failed to get the Gateway URL for token {escape_tag(bot_config.token)}. "
+                            "Trying to reconnect...</bg #f8bbd0></r>",
+                            e,
+                        )
+                        await asyncio.sleep(RECONNECT_INTERVAL)
+                        continue
 
                 headers = {}
                 if bot_config.token:
                     headers["Authorization"] = f"Bot {bot_config.token}"
-                request = Request("GET", url, headers=headers)
-
+                request = Request("GET", URL(url), headers=headers)
                 async with self.websocket(request) as ws:
                     log(
                         "DEBUG",
@@ -283,21 +294,26 @@ class Adapter(BaseAdapter):
                                 heartbeat_task = asyncio.create_task(
                                     self.start_heartbeat(bot)
                                 )
-
+                                session_id = event.session_id
                                 log(
                                     "INFO",
-                                    f"<y>Bot {escape_tag(self_id)}</y> connected",
+                                    f"<y>Bot {escape_tag(self_id)}</y> connected, session_id: {session_id}",
                                 )
+                                if need_reconnect:
+                                    need_reconnect = False
                             asyncio.create_task(bot.handle_event(event))
                     except ReconnectError as e:
                         log(
-                            "INFO",
+                            "ERROR",
                             "<r><bg #f8bbd0>Server requests reconnect"
-                            f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}.</bg #f8bbd0></r>",
-                            e,
+                            f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}, {e}</bg #f8bbd0></r>",
                         )
-                    except TokenError:
-                        raise
+                    except TokenError as e:
+                        log(
+                            "ERROR",
+                            "<r><bg #f8bbd0>Token error, {e}"
+                            f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}, {e}</bg #f8bbd0></r>",
+                        )
                     except Exception as e:
                         log(
                             "ERROR",
@@ -305,6 +321,7 @@ class Adapter(BaseAdapter):
                             f"{escape_tag(str(url))}. Trying to reconnect...</bg #f8bbd0></r>",
                             e,
                         )
+                        need_reconnect = True
                     finally:
                         if heartbeat_task:
                             heartbeat_task.cancel()
@@ -316,8 +333,6 @@ class Adapter(BaseAdapter):
                             pass
 
                         if bot:
-                            # 清空本地的 sn 计数
-                            ResultStore.set_sn(bot.self_id, 0)
                             self.connections.pop(bot.self_id, None)
                             self.bot_disconnect(bot)
                             bot = None
@@ -400,7 +415,7 @@ class Adapter(BaseAdapter):
         elif signal == SignalTypes.RECONNECT:
             raise ReconnectError(**json_data["d"])
         elif signal == SignalTypes.RESUME_ACK:
-            # 不存在的signal，resume是不可能resume的，这辈子都不会resume的，出了问题直接重连
+            log("INFO", "Resume success, session_id: " + json_data["d"]["session_id"])
             return
 
         # 屏蔽 Bot 自身
