@@ -396,7 +396,7 @@ class Adapter(BaseAdapter):
         elif signal == SignalTypes.EVENT:
             ResultStore.set_sn(self_id, json_data["sn"])
         elif signal == SignalTypes.RECONNECT:
-            raise ReconnectError
+            raise ReconnectError(**json_data["d"])
         elif signal == SignalTypes.RESUME_ACK:
             # 不存在的signal，resume是不可能resume的，这辈子都不会resume的，出了问题直接重连
             return

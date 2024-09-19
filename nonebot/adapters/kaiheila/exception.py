@@ -124,7 +124,16 @@ class ReconnectError(KaiheilaAdapterException):
       服务端通知客户端, 代表该连接已失效, 请重新连接。客户端收到后应该主动断开当前连接。
     """
 
-    pass
+    def __init__(self, code: int, err: str = ""):
+        super().__init__()
+        self.code = code
+        self.err = err
+
+    def __repr__(self):
+        return f"<ReconnectError code={self.code} err={self.err}>"
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class TokenError(KaiheilaAdapterException):
