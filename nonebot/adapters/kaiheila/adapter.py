@@ -38,6 +38,7 @@ from .event import (
     SignalTypes,
     HeartbeatMetaEvent,
     LifecycleMetaEvent,
+    ResumeAckMetaEvent,
 )
 from .exception import (
     TokenError,
@@ -416,7 +417,9 @@ class Adapter(BaseAdapter):
             raise ReconnectError(**json_data["d"])
         elif signal == SignalTypes.RESUME_ACK:
             log("INFO", "Resume success, session_id: " + json_data["d"]["session_id"])
-            return
+            return ResumeAckMetaEvent(
+                post_type="meta_event", meta_event_type="resume_ack"
+            )
 
         # 屏蔽 Bot 自身
         if json_data["d"].get("author_id") == self_id :

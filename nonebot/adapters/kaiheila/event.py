@@ -934,6 +934,13 @@ class HeartbeatMetaEvent(MetaEvent):
     meta_event_type: Literal["heartbeat"]
 
 
+class ResumeAckMetaEvent(MetaEvent):
+    """服务端通知resume成功事件"""
+
+    __event__ = "meta_event.resume_ack"
+    meta_event_type: Literal["resume_ack"]
+
+
 _t = StringTrie(separator=".")
 
 # define `model` first to avoid globals changing while `for`
