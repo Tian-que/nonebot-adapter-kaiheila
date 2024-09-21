@@ -309,12 +309,14 @@ class Adapter(BaseAdapter):
                             "<r><bg #f8bbd0>Server requests reconnect"
                             f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}, {e}</bg #f8bbd0></r>",
                         )
+                        need_reconnect = False
                     except TokenError as e:
                         log(
                             "ERROR",
                             "<r><bg #f8bbd0>Token error, {e}"
                             f"{'for bot ' + escape_tag(bot.self_id) if bot else ''}, {e}</bg #f8bbd0></r>",
                         )
+                        need_reconnect = False
                     except Exception as e:
                         log(
                             "ERROR",
