@@ -299,7 +299,7 @@ class Adapter(BaseAdapter):
                                 session_id = event.session_id
                                 log(
                                     "INFO",
-                                    f"<y>Bot {escape_tag(self_id)}</y> connected, session_id: {session_id}",
+                                    f"<y>Bot {escape_tag(self_id)}</y> connected, session_id: {session_id}, sn: {ResultStore.get_sn(self_id)}",
                                 )
                                 if need_reconnect:
                                     need_reconnect = False

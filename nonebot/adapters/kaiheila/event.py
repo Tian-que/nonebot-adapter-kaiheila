@@ -33,6 +33,7 @@ class EventTypes(IntEnum):
     audio = 8
     kmarkdown = 9
     card = 10
+    poke = 12
     sys = 255
 
 
@@ -135,9 +136,10 @@ class OriginEvent(BaseEvent):
 
 
 class Kmarkdown(BaseModel):
-    raw_content: str
+    raw_content: Optional[str] = None
     mention_part: list
-    mention_role_part: list
+    mention_role_part: Optional[list] = None
+    item_part: Optional[list] = None
 
 
 class EventMessage(BaseModel):
