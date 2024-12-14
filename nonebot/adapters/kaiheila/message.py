@@ -322,6 +322,36 @@ class Card(ReceivableMessageSegment):
         return cls("card", {"content": content})
 
 
+class Poke(ReceivableMessageSegment):
+    if TYPE_CHECKING:
+
+        class _PokeData(TypedDict):
+            content: dict
+
+        data: _PokeData
+
+    @classmethod
+    @override
+    def type_code(cls) -> int:
+        return 12
+
+    @override
+    def __str__(self) -> str:
+        return "[Poke]"
+
+    @classmethod
+    @override
+    def _deserialize(cls, raw_data: dict) -> Self:
+        return cls.create(raw_data["content"])
+
+    @classmethod
+    def create(cls, content: Any) -> "Card":
+        if isinstance(content, str):
+            content = json.loads(content)
+
+        return cls("poke", {"content": content})
+
+
 class Media(ReceivableMessageSegment):
     if TYPE_CHECKING:
 
@@ -906,6 +936,7 @@ _msg_type_map = {
     Audio: Audio.type_code(),
     KMarkdown: KMarkdown.type_code(),
     Card: Card.type_code(),
+    Poke: Poke.type_code(),
 }
 
 _rev_msg_type_map = {}
